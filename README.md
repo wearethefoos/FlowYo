@@ -26,6 +26,7 @@ open index.html          # or: pnpm start
 | undo / redo | **⌘Z** and **⇧⌘Z** (or ctrl), or the two arrows in the toolbar |
 | keep several charts | the name button in the toolbar — switch, add, rename, duplicate, delete |
 | import a chart | **Import mermaid…** in that menu — paste it, then add it or replace this one |
+| get it out | **Export…** in that menu — mermaid, Markdown, SVG or a 2× PNG |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
@@ -63,6 +64,9 @@ flowchart TD
 %% pos n3 420 410
 ```
 
+**Export…** in the chart menu will also hand you this as a `.mmd` file, wrapped in a
+fenced block as Markdown, as a standalone SVG, or rasterised to a 2× PNG.
+
 Shapes, labels (with `<br/>` line breaks) and colours are all real mermaid. Only the
 hand-placed coordinates live in `%%` comments, which mermaid ignores — so nothing is lost
 when the file travels, and reopening it in FlowYo puts every shape back where you left it.
@@ -98,6 +102,7 @@ hook, so nothing needs unblocking.
 | `06-undo` | the history stack: every mutation, the redo tail, and ⌘Z inside the label editor |
 | `07-charts` | the chart library: switching, renaming, duplicating, deleting, migration |
 | `08-import` | pasting mermaid in: what it accepts, what it refuses, and where it lands |
+| `09-export` | all four formats: content, the real downloaded files, and the PNG bytes |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently

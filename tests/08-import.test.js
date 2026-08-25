@@ -125,7 +125,7 @@ suite('importing mermaid', async (t) => {
   check('the paste box is empty again next time', await page.evaluate(() => {
     window.FlowYo.openImport();
     const v = document.getElementById('import-text').value;
-    window.FlowYo.closeImport();
+    window.FlowYo.closeSheet();
     return v === '';
   }));
 
@@ -136,6 +136,6 @@ suite('importing mermaid', async (t) => {
   await page.keyboard.press('Delete');
   await page.keyboard.press('2');
   await page.waitForTimeout(120);
-  await page.evaluate(() => window.FlowYo.closeImport());
+  await page.evaluate(() => window.FlowYo.closeSheet());
   check('Delete and the colour keys do not reach the canvas', await page.evaluate(() => window.FlowYo.toMermaid()) === chartNow);
 });

@@ -162,6 +162,21 @@
     outline:none;
   }
   #import-text:focus{border-color:var(--accent)}
+  .tabs{display:flex; gap:4px; padding:3px; background:var(--bg); border-radius:9px; align-self:flex-start}
+  .tab{border:none; background:none; border-radius:7px; padding:5px 12px; color:var(--muted); font-size:13px}
+  .tab:hover{background:transparent; color:var(--ink); border-color:transparent}
+  .tab[aria-selected="true"]{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(60,60,59,.12)}
+  #export-text{
+    width:100%; height:240px; resize:vertical;
+    font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--ink); background:var(--bg);
+    border:1px solid var(--line); border-radius:10px; padding:12px; outline:none;
+  }
+  #export-preview{
+    height:240px; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px;
+  }
+  #export-img{max-width:100%; max-height:100%; object-fit:contain}
   .sheet-foot{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
   .note{font-size:12px; color:var(--muted)}
   .note.bad{color:#db3069}
@@ -284,6 +299,7 @@
       <button class="menu-item action" id="btn-chart-rename">Rename…</button>
       <button class="menu-item action" id="btn-chart-duplicate">Duplicate</button>
       <button class="menu-item action" id="btn-chart-import">Import mermaid…</button>
+      <button class="menu-item action" id="btn-chart-export">Export…</button>
       <button class="menu-item action danger" id="btn-chart-delete">Delete chart</button>
     </div>
   </div>
@@ -361,6 +377,23 @@
         <span class="spacer"></span>
         <button id="import-replace">Replace this chart</button>
         <button id="import-new" class="primary">Import as new chart</button>
+      </div>
+    </section>
+
+    <section id="sheet-export" hidden>
+      <div class="tabs" id="export-tabs">
+        <button class="tab" data-format="mermaid">Mermaid</button>
+        <button class="tab" data-format="markdown">Markdown</button>
+        <button class="tab" data-format="svg">SVG</button>
+        <button class="tab" data-format="png">PNG</button>
+      </div>
+      <textarea id="export-text" readonly spellcheck="false"></textarea>
+      <div id="export-preview" hidden><img id="export-img" alt="Preview of the chart"></div>
+      <div class="sheet-foot">
+        <span id="export-note" class="note"></span>
+        <span class="spacer"></span>
+        <button id="export-copy">Copy</button>
+        <button id="export-download" class="primary">Download</button>
       </div>
     </section>
   </div>
@@ -1502,11 +1535,19 @@ const importNew = document.getElementById("import-new");
 const importReplace = document.getElementById("import-replace");
 let importParsed = null;
 
-function openSheet() {
+function openSheet(mode) {
+  const exporting = mode === "export";
+  document.getElementById("sheet-title").textContent = exporting ? "Export" : "Import mermaid";
+  document.getElementById("sheet-import").hidden = exporting;
+  document.getElementById("sheet-export").hidden = !exporting;
   sheet.hidden = false;
-  importText.value = "";
-  reviewImport();
-  importText.focus();
+  if (exporting) {
+    showExport(exportFormat);
+  } else {
+    importText.value = "";
+    reviewImport();
+    importText.focus();
+  }
 }
 function closeSheet() { sheet.hidden = true; }
 const sheetOpen = () => !sheet.hidden;
@@ -1548,7 +1589,11 @@ function applyImport(parsed) {
 
 document.getElementById("btn-chart-import").addEventListener("click", () => {
   closeChartMenu();
-  openSheet();
+  openSheet("import");
+});
+document.getElementById("btn-chart-export").addEventListener("click", () => {
+  closeChartMenu();
+  openSheet("export");
 });
 document.getElementById("sheet-close").addEventListener("click", closeSheet);
 sheet.addEventListener("pointerdown", ev => { if (ev.target === sheet) closeSheet(); });
@@ -1565,6 +1610,186 @@ importReplace.addEventListener("click", () => {
   const parsed = importParsed;
   closeSheet();
   applyImport(parsed);                 // one undo step: ⌘Z puts the old chart back
+});
+
+/* ============================================================
+   export: mermaid, Markdown, SVG, PNG
+   The SVG is the on-screen drawing with the editing furniture taken out and
+   the theme's colours resolved into it, so it stands alone anywhere.
+   ============================================================ */
+const exportText = document.getElementById("export-text");
+const exportImg = document.getElementById("export-img");
+const exportPreview = document.getElementById("export-preview");
+const exportNote = document.getElementById("export-note");
+const exportCopy = document.getElementById("export-copy");
+const exportDownload = document.getElementById("export-download");
+let exportFormat = "mermaid";
+
+const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flowchart";
+
+function chartBounds(pad) {
+  const p = pad === undefined ? 28 : pad;
+  if (!state.nodes.length) return { x: 0, y: 0, w: 320, h: 180 };
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  state.nodes.forEach(n => {
+    x1 = Math.min(x1, n.x - n.w / 2); y1 = Math.min(y1, n.y - n.h / 2);
+    x2 = Math.max(x2, n.x + n.w / 2); y2 = Math.max(y2, n.y + n.h / 2);
+  });
+  return { x: Math.round(x1 - p), y: Math.round(y1 - p),
+           w: Math.round(x2 - x1 + p * 2), h: Math.round(y2 - y1 + p * 2) };
+}
+
+/** the palette, resolved from whichever theme is on screen right now */
+function exportStyle() {
+  const cs = getComputedStyle(document.body);
+  const v = n => cs.getPropertyValue(n).trim();
+  const vars = ["--ink", "--muted", "--bg", "--edge", "--node-fill", "--node-stroke"]
+    .concat(COLOR_KEYS.map(k => "--n-" + k))
+    .concat(COLOR_KEYS.map(k => "--n-" + k + "-fill"))
+    .map(n => `${n}:${v(n)}`).join(";");
+  return `svg{${vars};font-family:${FONT.split("px ")[1]}}
+.node-shape{fill:var(--cf,var(--node-fill));stroke:var(--c,var(--node-stroke));stroke-width:2}
+.node-label{fill:var(--ink);font:500 14px ${FONT.split("px ")[1]};text-anchor:middle}
+.edge-line{fill:none;stroke:var(--c,var(--edge));stroke-width:2}
+.edge-label{fill:var(--c,var(--muted));font:500 12px ${FONT.split("px ")[1]};text-anchor:middle}
+.edge-label-bg{fill:var(--bg)}`;
+}
+
+function toSvgString() {
+  const b = chartBounds();
+  const cs = getComputedStyle(document.body);
+  const clone = gView.cloneNode(true);
+  clone.removeAttribute("transform");
+  clone.removeAttribute("id");
+  clone.querySelectorAll(".anchor, .sel-ring, .edge-hit, #temp-edge").forEach(el => el.remove());
+  clone.querySelectorAll(".selected").forEach(el => el.classList.remove("selected"));
+  const defs = svg.querySelector("defs").cloneNode(true);
+  defs.querySelectorAll("pattern").forEach(el => el.remove());
+  const ser = new XMLSerializer();
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${b.w}" height="${b.h}" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">`,
+    `<style>${exportStyle()}</style>`,
+    ser.serializeToString(defs),
+    `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${cs.getPropertyValue("--bg").trim()}"/>`,
+    ser.serializeToString(clone),
+    `</svg>`
+  ].join("\n");
+}
+
+const svgDataUrl = () => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(toSvgString());
+
+const PNG_SCALE = 2;
+function toPngBlob() {
+  return new Promise((resolve, reject) => {
+    const b = chartBounds();
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = b.w * PNG_SCALE;
+      canvas.height = b.h * PNG_SCALE;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("canvas gave no blob")), "image/png");
+    };
+    img.onerror = () => reject(new Error("the drawing could not be rasterised"));
+    img.src = svgDataUrl();
+  });
+}
+
+function markdownExport() {
+  const name = currentChart() ? currentChart().name : "Chart";
+  return `# ${name}\n\n\u0060\u0060\u0060mermaid\n${toMermaid()}\n\u0060\u0060\u0060\n`;
+}
+
+function exportPayload(format) {
+  if (format === "markdown") return { text: markdownExport(), ext: "md", mime: "text/markdown" };
+  if (format === "svg") return { text: toSvgString(), ext: "svg", mime: "image/svg+xml" };
+  return { text: toMermaid(), ext: "mmd", mime: "text/plain" };
+}
+
+function showExport(format) {
+  exportFormat = format;
+  document.querySelectorAll("#export-tabs .tab").forEach(b =>
+    b.setAttribute("aria-selected", b.dataset.format === format ? "true" : "false"));
+  const png = format === "png";
+  exportText.hidden = png;
+  exportPreview.hidden = !png;
+  exportCopy.disabled = png;
+  const b = chartBounds();
+  if (png) {
+    exportImg.src = svgDataUrl();
+    exportNote.className = "note";
+    exportNote.textContent = `PNG at ${PNG_SCALE}× — ${b.w * PNG_SCALE} × ${b.h * PNG_SCALE} px. Download only.`;
+  } else {
+    const payload = exportPayload(format);
+    exportText.value = payload.text;
+    exportNote.className = "note";
+    exportNote.textContent = format === "svg"
+      ? `Standalone SVG, ${b.w} × ${b.h}, in the colours you see now.`
+      : format === "markdown"
+        ? "A mermaid block, ready to paste into a README."
+        : "The chart's own storage format — paste it anywhere mermaid runs.";
+  }
+}
+
+function saveAs(filename, data, mime) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    const ta = document.createElement("textarea");     // older / permission-less browsers
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+
+document.querySelectorAll("#export-tabs .tab").forEach(b =>
+  b.addEventListener("click", () => showExport(b.dataset.format)));
+
+exportCopy.addEventListener("click", async () => {
+  const payload = exportPayload(exportFormat);
+  const ok = await copyText(payload.text);
+  exportNote.className = ok ? "note" : "note bad";
+  exportNote.textContent = ok ? "Copied to the clipboard." : "The browser would not let us copy — select the text instead.";
+});
+
+exportDownload.addEventListener("click", async () => {
+  const name = slug(currentChart() ? currentChart().name : "flowchart");
+  if (exportFormat === "png") {
+    exportNote.textContent = "Rendering…";
+    try {
+      saveAs(name + ".png", await toPngBlob(), "image/png");
+      exportNote.className = "note";
+      exportNote.textContent = "Saved as " + name + ".png";
+    } catch (err) {
+      exportNote.className = "note bad";
+      exportNote.textContent = "Could not make a PNG: " + err.message;
+    }
+    return;
+  }
+  const payload = exportPayload(exportFormat);
+  saveAs(`${name}.${payload.ext}`, payload.text, payload.mime);
+  exportNote.className = "note";
+  exportNote.textContent = `Saved as ${name}.${payload.ext}`;
 });
 
 /* ---------- persistence ---------- */
@@ -1619,7 +1844,10 @@ window.FlowYo = {
   charts: () => JSON.parse(JSON.stringify(library)),
   stored: id => read(chartKey(id || library.current)),
   newChart, switchChart, duplicateChart, renameChart, deleteChart,
-  openImport: openSheet, closeImport: closeSheet,
+  openImport: () => openSheet("import"),
+  openExport: () => openSheet("export"),
+  closeSheet,
+  toSvgString, toPngBlob, exportPayload,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 

@@ -27,22 +27,24 @@ Shipped so far (`index.html`):
 - **Import mermaid** — paste a chart into the sheet and it tells you what it reads before you commit;
   take it as a new chart or replace the open one (a single undo step). Anything without `%% pos` is
   laid out automatically and written back with its new layout
+- **Export** — copy or download the chart as mermaid (`.mmd`), Markdown (a fenced ```mermaid block),
+  a standalone SVG, or a 2× PNG. The SVG is the on-screen drawing with the editing furniture removed
+  and the theme's palette resolved into it, so it stands alone anywhere
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
   flushed on tab close
 
 ## Next up
 
-- [ ] **Export** — copy/download as:
-  - [ ] mermaid (`.mmd`)
-  - [ ] Markdown (mermaid fenced in a ```mermaid block)
-  - [ ] SVG (serialize the `<g id="view">` contents into a standalone sized SVG)
-  - [ ] PNG (rasterize that SVG onto a canvas at 2x)
+The original backlog is done. Pick from the ideas below, or:
+
+- [ ] **Nothing pressing** — the four planned features (undo/redo, several charts, import, export) all shipped
 
 ## Ideas parked for later
 
 - [ ] More shapes: rounded/stadium `([ ])`, subroutine `[[ ]]`, cylinder `[( )]`
 - [ ] Custom colours beyond the four palette slots, and per-chart theming
+- [ ] Export in the *other* theme, or on a transparent background, rather than what's on screen
 - [ ] Orthogonal / elbow connector routing instead of straight lines
 - [ ] Drag an arrow's endpoint onto a different shape to re-route it
 - [ ] Drop a `.mmd`/`.md` file onto the canvas, or ⌘V mermaid straight in, instead of the paste box
