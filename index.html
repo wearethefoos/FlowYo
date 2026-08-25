@@ -132,6 +132,42 @@
   .menu-item.danger:hover{background:rgba(219,48,105,.12); color:#db3069}
   .menu-item.armed{background:rgba(219,48,105,.14); color:#db3069; font-weight:600}
   .menu-sep{height:1px; background:var(--line); margin:5px 8px}
+
+  /* ---------- sheet ---------- */
+  .sheet{
+    position:fixed; inset:0; z-index:60;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(60,60,59,.35); padding:24px;
+  }
+  .sheet[hidden]{display:none}
+  .sheet-card{
+    width:min(680px, 100%); max-height:min(560px, 90vh);
+    display:flex; flex-direction:column;
+    background:var(--panel); color:var(--ink);
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 12px 48px rgba(60,60,59,.28);
+    overflow:hidden;
+  }
+  .sheet-card header{
+    display:flex; align-items:center; gap:12px;
+    padding:14px 16px; border-bottom:1px solid var(--line);
+  }
+  .sheet-card h2{margin:0; font-size:15px; font-weight:650; flex:1}
+  .sheet-card section{padding:16px; display:flex; flex-direction:column; gap:12px; min-height:0}
+  #import-text{
+    width:100%; height:260px; resize:vertical;
+    font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--ink); background:var(--bg);
+    border:1px solid var(--line); border-radius:10px; padding:12px;
+    outline:none;
+  }
+  #import-text:focus{border-color:var(--accent)}
+  .sheet-foot{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .note{font-size:12px; color:var(--muted)}
+  .note.bad{color:#db3069}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:550}
+  button.primary:hover{filter:brightness(1.08); background:var(--accent)}
+  button.primary:disabled{filter:none}
   .swatches{display:flex; gap:5px; align-items:center}
   .swatch{
     padding:0; width:26px; height:26px; border-radius:50%;
@@ -247,6 +283,7 @@
       <button class="menu-item action" id="btn-chart-new">New chart</button>
       <button class="menu-item action" id="btn-chart-rename">Rename…</button>
       <button class="menu-item action" id="btn-chart-duplicate">Duplicate</button>
+      <button class="menu-item action" id="btn-chart-import">Import mermaid…</button>
       <button class="menu-item action danger" id="btn-chart-delete">Delete chart</button>
     </div>
   </div>
@@ -309,6 +346,25 @@
 </main>
 
 <div id="ghost"></div>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <header>
+      <h2 id="sheet-title">Import mermaid</h2>
+      <button id="sheet-close" class="icon" aria-label="Close">✕</button>
+    </header>
+
+    <section id="sheet-import">
+      <textarea id="import-text" spellcheck="false" placeholder="flowchart TD&#10;    A[Order received] --> B{In stock?}&#10;    B --&gt;|yes| C((Ship))"></textarea>
+      <div class="sheet-foot">
+        <span id="import-note" class="note"></span>
+        <span class="spacer"></span>
+        <button id="import-replace">Replace this chart</button>
+        <button id="import-new" class="primary">Import as new chart</button>
+      </div>
+    </section>
+  </div>
+</div>
 
 <footer id="hints">
   <span><kbd>drag</kbd> a shape from the toolbar to place it</span>
@@ -964,6 +1020,10 @@ function ghostSvg(shape) {
 
 /* ---------- keyboard ---------- */
 window.addEventListener("keydown", ev => {
+  if (sheetOpen()) {
+    if (ev.key === "Escape") { ev.preventDefault(); closeSheet(); }
+    return;                                  // the sheet owns the keyboard while it is up
+  }
   if (editing) return;                       // inside the label editor ⌘Z is the browser's own text undo
   const t = ev.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
@@ -1432,6 +1492,81 @@ chartRename.addEventListener("keydown", ev => {
 });
 chartRename.addEventListener("blur", () => endRename(true));
 
+/* ============================================================
+   import: paste mermaid, look at what it parses to, then take it
+   ============================================================ */
+const sheet = document.getElementById("sheet");
+const importText = document.getElementById("import-text");
+const importNote = document.getElementById("import-note");
+const importNew = document.getElementById("import-new");
+const importReplace = document.getElementById("import-replace");
+let importParsed = null;
+
+function openSheet() {
+  sheet.hidden = false;
+  importText.value = "";
+  reviewImport();
+  importText.focus();
+}
+function closeSheet() { sheet.hidden = true; }
+const sheetOpen = () => !sheet.hidden;
+
+/** parse as you type, so the buttons only light up for something real */
+function reviewImport() {
+  const text = importText.value.trim();
+  if (!text) {
+    importParsed = null;
+    importNote.className = "note";
+    importNote.textContent = "Paste a mermaid flowchart.";
+  } else {
+    let parsed = null;
+    try { parsed = fromMermaid(text); } catch (err) { parsed = null; }
+    if (!parsed || !parsed.nodes.length) {
+      importParsed = null;
+      importNote.className = "note bad";
+      importNote.textContent = "No shapes found — is it a mermaid flowchart?";
+    } else {
+      importParsed = parsed;
+      const n = parsed.nodes.length, e = parsed.edges.length;
+      const positioned = /^\s*%%\s*pos\s/m.test(text);
+      importNote.className = "note";
+      importNote.textContent = `Reads as ${n} shape${n === 1 ? "" : "s"} and ${e} arrow${e === 1 ? "" : "s"}`
+        + (positioned ? ", with its saved layout." : ", laid out automatically.");
+    }
+  }
+  importNew.disabled = !importParsed;
+  importReplace.disabled = !importParsed;
+}
+
+function applyImport(parsed) {
+  state = parsed;
+  selection = null;
+  render();
+  fit();
+  save();
+}
+
+document.getElementById("btn-chart-import").addEventListener("click", () => {
+  closeChartMenu();
+  openSheet();
+});
+document.getElementById("sheet-close").addEventListener("click", closeSheet);
+sheet.addEventListener("pointerdown", ev => { if (ev.target === sheet) closeSheet(); });
+importText.addEventListener("input", reviewImport);
+importNew.addEventListener("click", () => {
+  if (!importParsed) return;
+  const text = importText.value.trim();
+  closeSheet();
+  newChart("Imported chart", text);
+  writeNow();          // store it back with the layout it was just given
+});
+importReplace.addEventListener("click", () => {
+  if (!importParsed) return;
+  const parsed = importParsed;
+  closeSheet();
+  applyImport(parsed);                 // one undo step: ⌘Z puts the old chart back
+});
+
 /* ---------- persistence ---------- */
 let savePending = false;
 function writeNow() {
@@ -1484,6 +1619,7 @@ window.FlowYo = {
   charts: () => JSON.parse(JSON.stringify(library)),
   stored: id => read(chartKey(id || library.current)),
   newChart, switchChart, duplicateChart, renameChart, deleteChart,
+  openImport: openSheet, closeImport: closeSheet,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 

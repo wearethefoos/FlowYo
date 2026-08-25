@@ -25,6 +25,7 @@ open index.html          # or: pnpm start
 | delete something | select it and press **Delete** |
 | undo / redo | **⌘Z** and **⇧⌘Z** (or ctrl), or the two arrows in the toolbar |
 | keep several charts | the name button in the toolbar — switch, add, rename, duplicate, delete |
+| import a chart | **Import mermaid…** in that menu — paste it, then add it or replace this one |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
@@ -96,6 +97,7 @@ hook, so nothing needs unblocking.
 | `05-mermaid` | hands FlowYo's output to the **real mermaid library** and asks it to parse |
 | `06-undo` | the history stack: every mutation, the redo tail, and ⌘Z inside the label editor |
 | `07-charts` | the chart library: switching, renaming, duplicating, deleting, migration |
+| `08-import` | pasting mermaid in: what it accepts, what it refuses, and where it lands |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently

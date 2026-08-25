@@ -24,14 +24,15 @@ Shipped so far (`index.html`):
 - **Several charts side by side** — the name button in the toolbar switches between them, and
   adds, renames, duplicates or deletes (two taps, no modal). Each chart is its own mermaid
   document; an install from the single-chart days is migrated on first open
+- **Import mermaid** — paste a chart into the sheet and it tells you what it reads before you commit;
+  take it as a new chart or replace the open one (a single undo step). Anything without `%% pos` is
+  laid out automatically and written back with its new layout
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
   flushed on tab close
 
 ## Next up
 
-- [ ] **Import mermaid** — paste a mermaid flowchart and lay it out (the parser and auto-layout already
-      handle this; `FlowYo.load(text)` works from the console — it just needs UI)
 - [ ] **Export** — copy/download as:
   - [ ] mermaid (`.mmd`)
   - [ ] Markdown (mermaid fenced in a ```mermaid block)
@@ -44,6 +45,7 @@ Shipped so far (`index.html`):
 - [ ] Custom colours beyond the four palette slots, and per-chart theming
 - [ ] Orthogonal / elbow connector routing instead of straight lines
 - [ ] Drag an arrow's endpoint onto a different shape to re-route it
+- [ ] Drop a `.mmd`/`.md` file onto the canvas, or ⌘V mermaid straight in, instead of the paste box
 - [ ] Let a spawned shape inherit the source's shape (or pick one) instead of always a square
 - [ ] Multi-select with a rubber band, plus align and distribute
 - [ ] Auto-arrange the whole chart (top-down / left-right)
