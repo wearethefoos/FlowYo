@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowYo</title>
+<style>
+  /* palette: cobalt #1446a0 · razzmatazz #db3069 · royal gold #f5d547 · beige #ebebd3 · gunmetal #3c3c3b
+     beige is the paper, gunmetal is the ink, the three brights colour the shapes */
+  :root{
+    --bg:#f2f2e3;
+    --grid:#e2e2ca;
+    --panel:#fbfbf3;
+    --line:#dededf;
+    --ink:#3c3c3b;
+    --muted:#7c7c72;
+    --accent:#1446a0;
+    --accent-soft:#e3e9f5;
+    --node-fill:#fbfbf3;
+    --node-stroke:#3c3c3b;
+    --edge:#77776e;
+    --halo:rgba(60,60,59,.16);
+    --shadow:0 1px 2px rgba(60,60,59,.08), 0 8px 24px rgba(60,60,59,.10);
+
+    --n-gunmetal:#3c3c3b;  --n-gunmetal-fill:rgba(60,60,59,.10);
+    --n-cobalt:#1446a0;    --n-cobalt-fill:rgba(20,70,160,.13);
+    --n-razz:#db3069;      --n-razz-fill:rgba(219,48,105,.12);
+    --n-gold:#e2ba1c;      --n-gold-fill:rgba(245,213,71,.34);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#2b2b29;
+      --grid:#353531;
+      --panel:#343432;
+      --line:#474743;
+      --ink:#ebebd3;
+      --muted:#9b9b8e;
+      --accent:#6b9aec;
+      --accent-soft:#26324a;
+      --node-fill:#323230;
+      --node-stroke:#8e8e83;
+      --edge:#8e8e83;
+      --halo:rgba(235,235,211,.20);
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+
+      --n-gunmetal:#c9c9be;  --n-gunmetal-fill:rgba(201,201,190,.12);
+      --n-cobalt:#6b9aec;    --n-cobalt-fill:rgba(107,154,236,.16);
+      --n-razz:#f0578c;      --n-razz-fill:rgba(240,87,140,.15);
+      --n-gold:#f5d547;      --n-gold-fill:rgba(245,213,71,.16);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font:14px/1.45 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- toolbar ---------- */
+  #toolbar{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 12px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    flex:0 0 auto;
+    z-index:5;
+  }
+  .brand{
+    font-weight:650; letter-spacing:-.01em; font-size:15px;
+    padding-right:6px; margin-right:2px;
+    display:flex; align-items:center; gap:7px;
+  }
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+  .spacer{flex:1}
+  button{
+    font:inherit; color:var(--ink);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:6px 10px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px;
+    transition:background .12s, border-color .12s, transform .06s;
+    user-select:none;
+  }
+  button:hover{background:var(--accent-soft); border-color:var(--accent)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.45; cursor:default; background:var(--panel); border-color:var(--line)}
+  button.icon{padding:6px 9px}
+  .shape-btn{touch-action:none}
+  .glyph{display:inline-block;width:16px;height:16px;flex:0 0 auto}
+  .glyph *{stroke:currentColor;stroke-width:1.8}
+  #status{color:var(--muted); font-size:12px; min-width:104px; text-align:right}
+  .swatches{display:flex; gap:5px; align-items:center}
+  .swatch{
+    padding:0; width:26px; height:26px; border-radius:50%;
+    border:2px solid transparent; background:none;
+    display:grid; place-items:center;
+  }
+  .swatch i{
+    display:block; width:16px; height:16px; border-radius:50%;
+    background:var(--sw-fill); border:2.5px solid var(--sw); box-sizing:border-box;
+  }
+  .swatch:hover{background:none; border-color:var(--line)}
+  .swatch[aria-pressed="true"]{border-color:var(--ink)}
+  .swatch:disabled{opacity:.4}
+  .swatch:disabled:hover{border-color:transparent}
+
+  /* ---------- stage ---------- */
+  #stage{position:relative; flex:1 1 auto; overflow:hidden}
+  #canvas{
+    position:absolute; inset:0; width:100%; height:100%;
+    display:block; touch-action:none; cursor:default;
+    background-color:var(--bg);
+  }
+  #canvas.panning{cursor:grabbing}
+  #canvas.connecting{cursor:crosshair}
+
+  .node-shape{
+    fill:var(--cf, var(--node-fill));
+    stroke:var(--c, var(--node-stroke));
+    stroke-width:2;
+    filter:drop-shadow(0 1px 1px rgba(60,60,59,.10));
+  }
+  .node-label{
+    fill:var(--ink);
+    font:500 14px ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    text-anchor:middle;
+    dominant-baseline:central;
+    pointer-events:none;
+    user-select:none;
+  }
+  .node{cursor:grab}
+  .node.dragging{cursor:grabbing}
+  .node:hover .node-shape{stroke-width:2.6}
+
+  /* selection reads as a dashed ring in the ink colour, so it never fights the shape's own colour */
+  .sel-ring{fill:none; stroke:var(--ink); stroke-width:1.4; stroke-dasharray:5 4; opacity:0; pointer-events:none}
+  .node.selected .sel-ring{opacity:.75}
+
+  .anchor{
+    fill:var(--panel); stroke:var(--c, var(--accent)); stroke-width:1.8;
+    opacity:0; pointer-events:none; transition:opacity .1s;
+    cursor:crosshair;
+  }
+  .node:hover .anchor, .node.selected .anchor{opacity:1; pointer-events:all}
+  .anchor:hover{fill:var(--c, var(--accent))}
+  .node.droptarget .node-shape{stroke-width:3; filter:none}
+
+  .edge-line{fill:none; stroke:var(--c, var(--edge)); stroke-width:2}
+  .edge-hit{fill:none; stroke:transparent; stroke-width:16; cursor:pointer}
+  .edge.selected .edge-hit{stroke:var(--halo)}
+  .edge.selected .edge-line{stroke-width:2.8}
+  .edge-label{
+    fill:var(--c, var(--muted)); font:500 12px ui-sans-serif,system-ui,sans-serif;
+    text-anchor:middle; pointer-events:none;
+  }
+  .edge-label-bg{fill:var(--bg); cursor:pointer}
+  #temp-edge{fill:none; stroke:var(--accent); stroke-width:2; stroke-dasharray:5 4; pointer-events:none}
+
+  #label-editor{
+    position:absolute; display:none; z-index:10;
+    font:500 14px/1.35 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    text-align:center; color:var(--ink);
+    background:var(--panel);
+    border:2px solid var(--accent); border-radius:6px;
+    padding:4px 6px; outline:none;
+    box-shadow:var(--shadow);
+    resize:none; overflow:hidden; white-space:pre-wrap;
+  }
+  #ghost{
+    position:fixed; z-index:50; pointer-events:none;
+    display:none; align-items:center; justify-content:center;
+    color:var(--accent); opacity:.9;
+  }
+  #empty-hint{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; color:var(--muted); text-align:center; font-size:14px;
+  }
+  #hints{
+    flex:0 0 auto; display:flex; gap:16px; flex-wrap:wrap;
+    padding:7px 14px; font-size:12px; color:var(--muted);
+    background:var(--panel); border-top:1px solid var(--line);
+  }
+  kbd{
+    font:inherit; font-size:11px; background:var(--bg); border:1px solid var(--line);
+    border-bottom-width:2px; border-radius:4px; padding:1px 5px; color:var(--ink);
+  }
+</style>
+</head>
+<body>
+
+<header id="toolbar">
+  <div class="brand"><span class="dot"></span>FlowYo</div>
+  <div class="sep"></div>
+
+  <button class="shape-btn" data-shape="circle" title="Drag onto the canvas, or click to drop one in the middle">
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#db3069"><circle cx="8" cy="8" r="6" fill="#db306922"/></svg>Circle
+  </button>
+  <button class="shape-btn" data-shape="rect" title="Drag onto the canvas, or click to drop one in the middle">
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#1446a0"><rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="#1446a022"/></svg>Square
+  </button>
+  <button class="shape-btn" data-shape="diamond" title="Drag onto the canvas, or click to drop one in the middle">
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#e2ba1c"><path d="M8 1.8 14.2 8 8 14.2 1.8 8Z" fill="#f5d54744"/></svg>Diamond
+  </button>
+
+  <div class="sep"></div>
+  <div class="swatches" id="swatches" title="Recolour the selected shape or arrow (keys 1-4)">
+    <button class="swatch" data-color="cobalt"   title="Cobalt blue (1)" style="--sw:var(--n-cobalt);--sw-fill:var(--n-cobalt-fill)"><i></i></button>
+    <button class="swatch" data-color="razz"     title="Razzmatazz (2)"  style="--sw:var(--n-razz);--sw-fill:var(--n-razz-fill)"><i></i></button>
+    <button class="swatch" data-color="gold"     title="Royal gold (3)"  style="--sw:var(--n-gold);--sw-fill:var(--n-gold-fill)"><i></i></button>
+    <button class="swatch" data-color="gunmetal" title="Gunmetal (4)"    style="--sw:var(--n-gunmetal);--sw-fill:var(--n-gunmetal-fill)"><i></i></button>
+  </div>
+
+  <div class="sep"></div>
+  <button id="btn-delete" class="icon" title="Delete selection (Delete)">Delete</button>
+
+  <div class="spacer"></div>
+  <button id="btn-zoom-out" class="icon" title="Zoom out">&minus;</button>
+  <button id="btn-zoom-reset" class="icon" title="Reset zoom to 100%">100%</button>
+  <button id="btn-zoom-in" class="icon" title="Zoom in">+</button>
+  <button id="btn-fit" class="icon" title="Fit chart to screen">Fit</button>
+  <div class="sep"></div>
+  <button id="btn-clear" class="icon" title="Start a new empty chart">Clear</button>
+  <span id="status"></span>
+</header>
+
+<main id="stage">
+  <svg id="canvas">
+    <defs>
+      <pattern id="grid-small" width="20" height="20" patternUnits="userSpaceOnUse">
+        <path d="M20 0H0V20" fill="none" stroke="var(--grid)" stroke-width="1"/>
+      </pattern>
+      <!-- one arrowhead per palette colour, filled from the live theme in paintTheme() -->
+    </defs>
+    <rect id="grid-bg" x="0" y="0" width="100%" height="100%" fill="url(#grid-small)"/>
+    <g id="view">
+      <g id="edges-layer"></g>
+      <g id="nodes-layer"></g>
+      <path id="temp-edge"></path>
+    </g>
+  </svg>
+  <div id="empty-hint">Drag a shape from the toolbar onto the canvas to begin</div>
+  <textarea id="label-editor" spellcheck="false" rows="1"></textarea>
+</main>
+
+<div id="ghost"></div>
+
+<footer id="hints">
+  <span><kbd>drag</kbd> a shape from the toolbar to place it</span>
+  <span><kbd>drag</kbd> a blue handle onto another shape to connect them</span>
+  <span><kbd>click</kbd> a blue handle (or drop it on empty canvas) to add a connected shape</span>
+  <span><kbd>double-click</kbd> a shape or an arrow to label it &mdash; <kbd>shift + enter</kbd> for a line break</span>
+  <span><kbd>⌥/alt + drag</kbd> copies a shape</span>
+  <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> or the dots recolour the selection</span>
+  <span><kbd>Delete</kbd> removes the selection</span>
+  <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>drag</kbd> empty space pans, <kbd>shift</kbd> ignores the grid</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================
+   FlowYo — a small flowchart editor.
+   Charts render as SVG and persist to localStorage as mermaid.
+   ============================================================ */
+
+const STORE_KEY   = "flowyo:chart:v1";
+const SEEDED_KEY  = "flowyo:seeded:v1";
+const GRID        = 10;   // drag snap
+const LINE_H      = 19;   // node label line height
+const EDGE_LINE_H = 15;   // connector label line height
+const EDGE_FONT   = '500 12px ui-sans-serif,system-ui,sans-serif';
+const FONT        = '500 14px ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+
+/* ---------- elements ---------- */
+const svg       = document.getElementById("canvas");
+const gView     = document.getElementById("view");
+const gEdges    = document.getElementById("edges-layer");
+const gNodes    = document.getElementById("nodes-layer");
+const tempEdge  = document.getElementById("temp-edge");
+const stage     = document.getElementById("stage");
+const editor    = document.getElementById("label-editor");
+const ghost     = document.getElementById("ghost");
+const statusEl  = document.getElementById("status");
+const emptyHint = document.getElementById("empty-hint");
+const gridBg    = document.getElementById("grid-bg");
+
+/* ---------- state ---------- */
+let state     = { nodes: [], edges: [] };
+let view      = { x: 0, y: 0, k: 1 };
+let selection = null;          // {kind:'node'|'edge', id}
+let editing   = null;          // node being renamed
+let drag      = null;          // active pointer interaction
+let saveTimer = null;
+
+/* the palette. keys are what we store; the hexes are what we write into mermaid */
+const COLORS = { cobalt: "#1446a0", razz: "#db3069", gold: "#f5d547", gunmetal: "#3c3c3b" };
+const COLOR_KEYS = Object.keys(COLORS);                       // also the order of keys 1-4
+const MERMAID_FILL = { cobalt: "#1446a01f", razz: "#db30691f", gold: "#f5d54759", gunmetal: "#3c3c3b1a" };
+const SHAPE_COLOR = { circle: "razz", rect: "cobalt", diamond: "gold" };
+const colorOf = o => (o && COLORS[o.color] ? o.color : null);
+
+const NS = "http://www.w3.org/2000/svg";
+const el = (name, attrs = {}) => {
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+};
+const nodeById = id => state.nodes.find(n => n.id === id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ---------- arrowheads + theme-driven attribute colours ---------- */
+const ARROW_KEYS = ["default"].concat(COLOR_KEYS);
+function buildMarkers() {
+  const defs = svg.querySelector("defs");
+  ARROW_KEYS.forEach(k => {
+    const m = el("marker", { id: "arrow-" + k, viewBox: "0 0 10 10", refX: 9, refY: 5,
+                             markerWidth: 7, markerHeight: 7, markerUnits: "strokeWidth",
+                             orient: "auto-start-reverse" });
+    m.appendChild(el("path", { d: "M0 0.6 L10 5 L0 9.4 Z" }));
+    defs.appendChild(m);
+  });
+}
+function paintTheme() {
+  const cs = getComputedStyle(document.body);
+  const v = name => cs.getPropertyValue(name).trim();
+  document.querySelector("#grid-small path").setAttribute("stroke", v("--grid"));
+  ARROW_KEYS.forEach(k => {
+    const path = document.querySelector("#arrow-" + k + " path");
+    if (path) path.setAttribute("fill", k === "default" ? v("--edge") : v("--n-" + k));
+  });
+}
+if (window.matchMedia) {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  (mq.addEventListener ? mq.addEventListener.bind(mq, "change") : mq.addListener.bind(mq))(paintTheme);
+}
+
+/* ---------- geometry ---------- */
+const measureCtx = document.createElement("canvas").getContext("2d");
+function textWidth(t, font) {
+  measureCtx.font = font || FONT;
+  return measureCtx.measureText(t || "").width;
+}
+const labelLines = t => String(t == null ? "" : t).split("\n");
+function textBlock(label) {
+  const ls = labelLines(label);
+  return { w: Math.max(...ls.map(textWidth), 0), h: ls.length * LINE_H, lines: ls };
+}
+function sizeFor(shape, label) {
+  const b = textBlock(label);
+  if (shape === "circle") {
+    const d = Math.max(96, Math.hypot(b.w, b.h) + 34);
+    return { w: d, h: d };
+  }
+  if (shape === "diamond") return { w: Math.max(140, b.w * 1.5 + 60), h: Math.max(92, b.h * 2 + 34) };
+  return { w: Math.max(120, b.w + 48), h: Math.max(66, b.h + 36) };
+}
+function resize(n) { const s = sizeFor(n.shape, n.label); n.w = s.w; n.h = s.h; }
+
+/** point where a ray leaving n's centre in direction (ux,uy) crosses its outline */
+function borderPoint(n, ux, uy, pad = 0) {
+  const hw = n.w / 2, hh = n.h / 2;
+  let t;
+  if (n.shape === "circle") {
+    t = 1 / Math.hypot(ux / hw, uy / hh);
+  } else if (n.shape === "diamond") {
+    t = 1 / (Math.abs(ux) / hw + Math.abs(uy) / hh);
+  } else {
+    const tx = ux !== 0 ? hw / Math.abs(ux) : Infinity;
+    const ty = uy !== 0 ? hh / Math.abs(uy) : Infinity;
+    t = Math.min(tx, ty);
+  }
+  t += pad;
+  return { x: n.x + ux * t, y: n.y + uy * t };
+}
+
+/* screen (client) -> world coordinates */
+function toWorld(clientX, clientY) {
+  const r = svg.getBoundingClientRect();
+  return { x: (clientX - r.left - view.x) / view.k, y: (clientY - r.top - view.y) / view.k };
+}
+function viewportCentreWorld() {
+  const r = svg.getBoundingClientRect();
+  return toWorld(r.left + r.width / 2, r.top + r.height / 2);
+}
+
+/* ---------- model mutations ---------- */
+let idSeq = 1;
+function freshId() {
+  let id;
+  do { id = "n" + idSeq++; } while (nodeById(id));
+  return id;
+}
+function addNode(shape, x, y, label, color) {
+  const n = { id: freshId(), shape, label: label !== undefined ? label : defaultLabel(shape),
+              x, y, w: 0, h: 0, color: color || SHAPE_COLOR[shape] };
+  resize(n);
+  state.nodes.push(n);
+  return n;
+}
+function defaultLabel(shape) {
+  return shape === "circle" ? "Start" : shape === "diamond" ? "Decision?" : "Step";
+}
+function addEdge(from, to, label) {
+  if (from === to) return null;
+  if (state.edges.some(e => e.from === from && e.to === to)) return null;
+  const e = { id: "e" + from + "_" + to, from, to, label: label || "", color: null };
+  state.edges.push(e);
+  return e;
+}
+function removeNode(id) {
+  state.nodes = state.nodes.filter(n => n.id !== id);
+  state.edges = state.edges.filter(e => e.from !== id && e.to !== id);
+}
+function removeEdge(id) { state.edges = state.edges.filter(e => e.id !== id); }
+
+function deleteSelection() {
+  if (!selection) return;
+  if (selection.kind === "node") removeNode(selection.id); else removeEdge(selection.id);
+  selection = null;
+  render(); save();
+}
+
+/* ---------- rendering ---------- */
+const ANCHORS = [[0,-1],[1,0],[0,1],[-1,0]];
+
+function nodeOutline(n, cls, grow) {
+  const g = grow || 0;
+  const hw = n.w / 2 + g, hh = n.h / 2 + g;
+  if (n.shape === "circle")
+    return el("ellipse", { class: cls, cx: 0, cy: 0, rx: hw, ry: hh });
+  if (n.shape === "diamond")
+    return el("polygon", { class: cls, points: `0,${-hh} ${hw},0 0,${hh} ${-hw},0` });
+  return el("rect", { class: cls, x: -hw, y: -hh, width: hw * 2, height: hh * 2, rx: 8 + g / 2, ry: 8 + g / 2 });
+}
+/** paints an element by setting the two custom properties the stylesheet reads */
+function tint(g, key) {
+  if (key) {
+    g.style.setProperty("--c", `var(--n-${key})`);
+    g.style.setProperty("--cf", `var(--n-${key}-fill)`);
+  } else {
+    g.style.removeProperty("--c");
+    g.style.removeProperty("--cf");
+  }
+}
+
+/** a <text> holding one <tspan> per line, vertically centred on (cx, cy) */
+function textEl(cls, label, cx, cy, lineH) {
+  const ls = labelLines(label);
+  const t = el("text", { class: cls, x: cx, y: cy });
+  const y0 = cy - ((ls.length - 1) * lineH) / 2;
+  ls.forEach((line, i) => {
+    const ts = el("tspan", { x: cx, y: y0 + i * lineH, "dominant-baseline": "central" });
+    ts.textContent = line === "" ? " " : line;
+    t.appendChild(ts);
+  });
+  return t;
+}
+
+function renderNode(n) {
+  const g = el("g", { class: "node", "data-id": n.id, transform: `translate(${n.x},${n.y})` });
+  tint(g, colorOf(n));
+  g.appendChild(nodeOutline(n, "node-shape"));
+  g.appendChild(nodeOutline(n, "sel-ring", 7));
+  g.appendChild(textEl("node-label", n.label, 0, 1, LINE_H));
+  for (const [ax, ay] of ANCHORS) {
+    const p = borderPoint(n, ax, ay);
+    const a = el("circle", { class: "anchor", cx: p.x - n.x, cy: p.y - n.y, r: 5,
+                             "data-anchor": ax + "," + ay });
+    g.appendChild(a);
+  }
+  gNodes.appendChild(g);
+  return g;
+}
+
+function edgeGeometry(e) {
+  const a = nodeById(e.from), b = nodeById(e.to);
+  if (!a || !b) return null;
+  let dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return null;
+  const ux = dx / len, uy = dy / len;
+  return { p1: borderPoint(a, ux, uy, 2), p2: borderPoint(b, -ux, -uy, 5) };
+}
+
+/** connector label: centred on the midpoint of the line, which it knocks out behind itself */
+function edgeLabelMetrics(e, geo) {
+  const ls = labelLines(e.label);
+  const w = Math.max(...ls.map(t => textWidth(t, EDGE_FONT)), 0);
+  const h = ls.length * EDGE_LINE_H;
+  return { ls, w, h, x: (geo.p1.x + geo.p2.x) / 2, y: (geo.p1.y + geo.p2.y) / 2 };
+}
+const labelBox = m => ({ x: m.x - m.w / 2 - 7, y: m.y - m.h / 2 - 3, width: m.w + 14, height: m.h + 6 });
+
+function renderEdge(e) {
+  const geo = edgeGeometry(e);
+  if (!geo) return;
+  const d = `M${geo.p1.x},${geo.p1.y} L${geo.p2.x},${geo.p2.y}`;
+  const g = el("g", { class: "edge", "data-id": e.id });
+  tint(g, colorOf(e));
+  g.appendChild(el("path", { class: "edge-hit", d }));
+  g.appendChild(el("path", { class: "edge-line", d, "marker-end": `url(#arrow-${colorOf(e) || "default"})` }));
+  if (e.label) {
+    const m = edgeLabelMetrics(e, geo);
+    g.appendChild(el("rect", Object.assign({ class: "edge-label-bg", rx: 4 }, labelBox(m))));
+    g.appendChild(textEl("edge-label", e.label, m.x, m.y, EDGE_LINE_H));
+  }
+  gEdges.appendChild(g);
+}
+
+function render() {
+  gNodes.textContent = "";
+  gEdges.textContent = "";
+  state.edges.forEach(renderEdge);
+  state.nodes.forEach(renderNode);
+  applySelection();
+  emptyHint.style.display = state.nodes.length ? "none" : "flex";
+  document.getElementById("btn-delete").disabled = !selection;
+}
+
+const selectedObject = () => !selection ? null
+  : selection.kind === "node" ? nodeById(selection.id)
+  : state.edges.find(e => e.id === selection.id);
+
+function applySelection() {
+  gNodes.querySelectorAll(".node.selected").forEach(n => n.classList.remove("selected"));
+  gEdges.querySelectorAll(".edge.selected").forEach(n => n.classList.remove("selected"));
+  if (selection) {
+    const layer = selection.kind === "node" ? gNodes : gEdges;
+    const g = layer.querySelector(`[data-id="${CSS.escape(selection.id)}"]`);
+    if (g) g.classList.add("selected");
+  }
+  const obj = selectedObject();
+  document.querySelectorAll(".swatch").forEach(b => {
+    b.disabled = !obj;
+    b.setAttribute("aria-pressed", obj && obj.color === b.dataset.color ? "true" : "false");
+  });
+  document.getElementById("btn-delete").disabled = !selection;
+}
+
+/** recolour the selection; clicking its current colour clears it back to the default */
+function setColor(key) {
+  const obj = selectedObject();
+  if (!obj || !COLORS[key]) return;
+  const back = selection.kind === "node" ? SHAPE_COLOR[obj.shape] : null;
+  obj.color = obj.color === key ? back : key;
+  render(); save();
+}
+document.querySelectorAll(".swatch").forEach(b =>
+  b.addEventListener("click", () => setColor(b.dataset.color)));
+function select(kind, id) { selection = kind ? { kind, id } : null; applySelection(); }
+
+/* incremental updates while dragging */
+function moveNodeEl(n) {
+  const g = gNodes.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
+  if (g) g.setAttribute("transform", `translate(${n.x},${n.y})`);
+  redrawEdgesFor(n.id);
+}
+function redrawEdgesFor(id) {
+  state.edges.forEach(e => {
+    if (e.from !== id && e.to !== id) return;
+    const g = gEdges.querySelector(`[data-id="${CSS.escape(e.id)}"]`);
+    const geo = edgeGeometry(e);
+    if (!g || !geo) return;
+    const d = `M${geo.p1.x},${geo.p1.y} L${geo.p2.x},${geo.p2.y}`;
+    g.querySelectorAll("path").forEach(p => p.setAttribute("d", d));
+    const t = g.querySelector(".edge-label");
+    if (t) {
+      const m = edgeLabelMetrics(e, geo);
+      t.setAttribute("x", m.x); t.setAttribute("y", m.y);
+      const y0 = m.y - ((m.ls.length - 1) * EDGE_LINE_H) / 2;
+      t.querySelectorAll("tspan").forEach((ts, i) => { ts.setAttribute("x", m.x); ts.setAttribute("y", y0 + i * EDGE_LINE_H); });
+      const bg = g.querySelector(".edge-label-bg");
+      if (bg) { const b = labelBox(m); for (const k in b) bg.setAttribute(k, b[k]); }
+    }
+  });
+}
+
+/* ---------- viewport ---------- */
+function applyView() {
+  gView.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  gridBg.setAttribute("fill", "url(#grid-small)");
+  const p = document.querySelector("#grid-small");
+  const s = 20 * view.k;
+  p.setAttribute("width", s);
+  p.setAttribute("height", s);
+  p.setAttribute("patternTransform", `translate(${view.x % s},${view.y % s})`);
+  p.querySelector("path").setAttribute("d", `M${s} 0H0V${s}`);
+  document.getElementById("btn-zoom-reset").textContent = Math.round(view.k * 100) + "%";
+  if (editing) positionEditor();
+}
+function zoomAt(cx, cy, factor) {
+  const r = svg.getBoundingClientRect();
+  const px = cx - r.left, py = cy - r.top;
+  const k2 = clamp(view.k * factor, 0.25, 3);
+  const f = k2 / view.k;
+  view.x = px - (px - view.x) * f;
+  view.y = py - (py - view.y) * f;
+  view.k = k2;
+  applyView();
+}
+function fit() {
+  if (!state.nodes.length) { view = { x: 0, y: 0, k: 1 }; applyView(); return; }
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  state.nodes.forEach(n => {
+    x1 = Math.min(x1, n.x - n.w / 2); y1 = Math.min(y1, n.y - n.h / 2);
+    x2 = Math.max(x2, n.x + n.w / 2); y2 = Math.max(y2, n.y + n.h / 2);
+  });
+  const r = svg.getBoundingClientRect(), pad = 60;
+  const k = clamp(Math.min((r.width - pad * 2) / (x2 - x1), (r.height - pad * 2) / (y2 - y1)), 0.25, 1.5);
+  view.k = k;
+  view.x = r.width / 2 - ((x1 + x2) / 2) * k;
+  view.y = r.height / 2 - ((y1 + y2) / 2) * k;
+  applyView();
+}
+
+/* ---------- label editing (nodes and connectors) ---------- */
+function positionEditor() {
+  if (!editing) return;
+  const k = view.k;
+  const fs = Math.max(11, 14 * k);
+  const lh = Math.round(fs * 1.35);
+  const rows = editor.value.split("\n").length;
+  let cx, cy, boxW;
+  if (editing.kind === "node") {
+    const n = editing.obj;
+    cx = n.x; cy = n.y;
+    boxW = Math.max(96, n.w * k - 10);
+  } else {
+    const geo = edgeGeometry(editing.obj);
+    if (!geo) return;
+    cx = (geo.p1.x + geo.p2.x) / 2;
+    cy = (geo.p1.y + geo.p2.y) / 2;
+    boxW = Math.max(120, 150 * k);
+  }
+  const boxH = rows * lh + 12;                    // border-box: padding + border included
+  editor.style.fontSize   = fs + "px";
+  editor.style.lineHeight = lh + "px";
+  editor.style.width  = boxW + "px";
+  editor.style.height = boxH + "px";
+  editor.style.left = (view.x + cx * k - boxW / 2) + "px";
+  editor.style.top  = (view.y + cy * k - boxH / 2) + "px";
+}
+function startEditing(kind, obj) {
+  editing = { kind, obj };
+  editor.value = obj.label || "";
+  editor.placeholder = kind === "edge" ? "label" : "";
+  editor.style.display = "block";
+  positionEditor();
+  editor.focus();
+  editor.select();
+}
+let committing = false;
+function commitEditing(keep) {
+  if (!editing || committing) return;
+  committing = true;
+  const { kind, obj } = editing;
+  editing = null;
+  editor.style.display = "none";
+  if (document.activeElement === editor) editor.blur();
+  committing = false;
+  if (keep) {
+    const value = editor.value.replace(/[ \t]+$/gm, "").replace(/^\n+|\n+$/g, "");
+    if (value === obj.label) return;
+    obj.label = value;
+    if (kind === "node") resize(obj);
+    render(); save();
+  }
+}
+editor.addEventListener("keydown", ev => {
+  if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); commitEditing(true); }
+  else if (ev.key === "Escape") { ev.preventDefault(); commitEditing(false); }
+  ev.stopPropagation();
+});
+editor.addEventListener("input", positionEditor);
+editor.addEventListener("blur", () => commitEditing(true));
+
+/* ---------- canvas interaction ---------- */
+svg.addEventListener("pointerdown", ev => {
+  if (ev.button !== 0) return;
+  commitEditing(true);
+  const anchor = ev.target.closest(".anchor");
+  let   nodeG  = ev.target.closest(".node");
+  const edgeG  = ev.target.closest(".edge");
+
+  if (anchor && nodeG) {
+    const n = nodeById(nodeG.dataset.id);
+    const [ax, ay] = anchor.dataset.anchor.split(",").map(Number);
+    const p = borderPoint(n, ax, ay);
+    drag = { type: "connect", from: n.id, origin: p, dir: [ax, ay], target: null, over: null,
+             sx: ev.clientX, sy: ev.clientY, moved: false };
+    svg.classList.add("connecting");
+    svg.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    return;
+  }
+  if (nodeG) {
+    let n = nodeById(nodeG.dataset.id);
+    let cloned = false;
+    if (ev.altKey) {                       // ⌥/alt + drag pulls a copy off the original
+      n = addNode(n.shape, n.x, n.y, n.label, n.color);
+      cloned = true;
+      render();
+      nodeG = gNodes.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
+    }
+    select("node", n.id);
+    const w = toWorld(ev.clientX, ev.clientY);
+    drag = { type: "node", id: n.id, dx: w.x - n.x, dy: w.y - n.y, moved: false, cloned };
+    nodeG.classList.add("dragging");
+    svg.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    return;
+  }
+  if (edgeG) { select("edge", edgeG.dataset.id); return; }
+
+  select(null);
+  drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y };
+  svg.classList.add("panning");
+  svg.setPointerCapture(ev.pointerId);
+});
+
+svg.addEventListener("pointermove", ev => {
+  if (!drag) return;
+  if (drag.type === "pan") {
+    view.x = drag.vx + (ev.clientX - drag.sx);
+    view.y = drag.vy + (ev.clientY - drag.sy);
+    applyView();
+  } else if (drag.type === "node") {
+    const n = nodeById(drag.id);
+    if (!n) return;
+    const w = toWorld(ev.clientX, ev.clientY);
+    let nx = w.x - drag.dx, ny = w.y - drag.dy;
+    if (!ev.shiftKey) { nx = Math.round(nx / GRID) * GRID; ny = Math.round(ny / GRID) * GRID; }
+    if (nx !== n.x || ny !== n.y) drag.moved = true;
+    n.x = nx; n.y = ny;
+    moveNodeEl(n);
+  } else if (drag.type === "connect") {
+    const w = toWorld(ev.clientX, ev.clientY);
+    tempEdge.setAttribute("d", `M${drag.origin.x},${drag.origin.y} L${w.x},${w.y}`);
+    if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 4) drag.moved = true;
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const g = under && under.closest ? under.closest(".node") : null;
+    drag.over = g ? g.dataset.id : null;
+    const id = g && g.dataset.id !== drag.from ? g.dataset.id : null;
+    if (id !== drag.target) {
+      gNodes.querySelectorAll(".droptarget").forEach(x => x.classList.remove("droptarget"));
+      if (id) gNodes.querySelector(`[data-id="${CSS.escape(id)}"]`).classList.add("droptarget");
+      drag.target = id;
+    }
+  }
+});
+
+/** first free spot one step away from `src` in direction `dir`, branching sideways if taken */
+function placeNear(src, dir, size) {
+  const [ax, ay] = dir, px = -ay, py = ax;
+  const stepF = (Math.abs(ax) ? (src.w + size.w) / 2 : (src.h + size.h) / 2) + 70;
+  const stepP = (Math.abs(px) ? size.w : size.h) + 50;
+  const taken = (x, y) => state.nodes.some(n =>
+    Math.abs(x - n.x) < (size.w + n.w) / 2 + 16 && Math.abs(y - n.y) < (size.h + n.h) / 2 + 16);
+  for (let f = 0; f < 4; f++) {
+    for (const j of [0, 1, -1, 2, -2]) {
+      const x = src.x + ax * (stepF + f * stepP) + px * j * stepP;
+      const y = src.y + ay * (stepF + f * stepP) + py * j * stepP;
+      if (!taken(x, y)) return { x, y };
+    }
+  }
+  return { x: src.x + ax * stepF, y: src.y + ay * stepF };
+}
+
+/** grow a new node off `from`, wire it up and drop straight into its label editor */
+function growFrom(fromId, at, dir) {
+  const src = nodeById(fromId);
+  if (!src) return;
+  const label = defaultLabel("rect");
+  const size = sizeFor("rect", label);
+  const p = at || placeNear(src, dir || [0, 1], size);
+  const n = addNode("rect", Math.round(p.x / GRID) * GRID, Math.round(p.y / GRID) * GRID, label);
+  addEdge(fromId, n.id);
+  render();
+  select("node", n.id);
+  save();
+  startEditing("node", n);
+}
+
+function endDrag(ev) {
+  if (!drag) return;
+  if (drag.type === "node") {
+    gNodes.querySelectorAll(".dragging").forEach(x => x.classList.remove("dragging"));
+    if (drag.moved || drag.cloned) save();
+  } else if (drag.type === "connect") {
+    gNodes.querySelectorAll(".droptarget").forEach(x => x.classList.remove("droptarget"));
+    tempEdge.removeAttribute("d");
+    let over = drag.over;
+    if (ev) {                                   // re-read what is under the pointer at drop time
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const g = under && under.closest ? under.closest(".node") : null;
+      over = g ? g.dataset.id : null;
+    }
+    const target = over && over !== drag.from ? over : null;
+    if (target) {
+      const e = addEdge(drag.from, target);
+      render();
+      if (e) { select("edge", e.id); save(); }
+    } else if (!drag.moved) {
+      growFrom(drag.from, null, drag.dir);      // a click on a free handle: sprout a connected node
+    } else if (!over && ev) {
+      growFrom(drag.from, toWorld(ev.clientX, ev.clientY), drag.dir);  // dropped on empty canvas
+    }
+  }
+  svg.classList.remove("panning", "connecting");
+  drag = null;
+}
+function endDragEvent(ev) {
+  if (ev && ev.pointerId != null && svg.hasPointerCapture && svg.hasPointerCapture(ev.pointerId))
+    svg.releasePointerCapture(ev.pointerId);
+  endDrag(ev);
+}
+svg.addEventListener("pointerup", endDragEvent);
+svg.addEventListener("pointercancel", endDragEvent);
+
+function groupAt(ev, sel) {
+  let g = ev.target.closest ? ev.target.closest(sel) : null;
+  if (!g) {
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    g = under && under.closest ? under.closest(sel) : null;
+  }
+  return g;
+}
+const nodeGroupAt = ev => groupAt(ev, ".node");
+const edgeGroupAt = ev => groupAt(ev, ".edge");
+
+svg.addEventListener("dblclick", ev => {
+  const g = nodeGroupAt(ev);
+  if (g) {
+    const n = nodeById(g.dataset.id);
+    if (n) { select("node", n.id); startEditing("node", n); }
+    return;
+  }
+  const eg = edgeGroupAt(ev);
+  if (eg) {
+    const e = state.edges.find(x => x.id === eg.dataset.id);
+    if (e) { select("edge", e.id); startEditing("edge", e); }
+  }
+});
+
+svg.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  if (ev.ctrlKey || ev.metaKey) {
+    zoomAt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * 0.01));
+  } else {
+    view.x -= ev.deltaX;
+    view.y -= ev.deltaY;
+    applyView();
+  }
+}, { passive: false });
+
+/* ---------- palette drag & drop ---------- */
+document.querySelectorAll(".shape-btn").forEach(btn => {
+  btn.addEventListener("pointerdown", ev => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const shape = btn.dataset.shape;
+    const start = { x: ev.clientX, y: ev.clientY };
+    let moved = false;
+    ghost.innerHTML = ghostSvg(shape);
+    const move = e => {
+      if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) {
+        moved = true;
+        ghost.style.display = "flex";
+      }
+      if (moved) { ghost.style.left = (e.clientX - 60) + "px"; ghost.style.top = (e.clientY - 34) + "px"; }
+    };
+    const up = e => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      ghost.style.display = "none";
+      const r = svg.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      let p;
+      if (moved && inside) p = toWorld(e.clientX, e.clientY);
+      else if (moved) return;                 // dropped outside the canvas: cancel
+      else p = viewportCentreWorld();         // plain click: drop in the middle
+      const n = addNode(shape, Math.round(p.x / GRID) * GRID, Math.round(p.y / GRID) * GRID);
+      render(); select("node", n.id); save();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+});
+function ghostSvg(shape) {
+  const body = shape === "circle" ? '<circle cx="60" cy="34" r="30"/>'
+             : shape === "diamond" ? '<polygon points="60,4 128,34 60,64 -8,34"/>'
+             : '<rect x="8" y="8" width="104" height="52" rx="8"/>';
+  return `<svg width="120" height="68" viewBox="0 0 120 68" style="overflow:visible">
+            <g fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="2">${body}</g>
+          </svg>`;
+}
+
+/* ---------- keyboard ---------- */
+window.addEventListener("keydown", ev => {
+  if (editing) return;
+  const t = ev.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  if (/^[1-9]$/.test(ev.key) && COLOR_KEYS[+ev.key - 1] && selection) {
+    ev.preventDefault(); setColor(COLOR_KEYS[+ev.key - 1]);
+  }
+  else if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); deleteSelection(); }
+  else if (ev.key === "Escape") select(null);
+  else if (ev.key === "Enter" && selection) {
+    ev.preventDefault();
+    if (selection.kind === "node") startEditing("node", nodeById(selection.id));
+    else {
+      const e = state.edges.find(x => x.id === selection.id);
+      if (e) startEditing("edge", e);
+    }
+  }
+});
+
+/* ---------- toolbar ---------- */
+document.getElementById("btn-delete").addEventListener("click", deleteSelection);
+document.getElementById("btn-fit").addEventListener("click", fit);
+document.getElementById("btn-zoom-in").addEventListener("click", () => {
+  const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2);
+});
+document.getElementById("btn-zoom-out").addEventListener("click", () => {
+  const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2);
+});
+document.getElementById("btn-zoom-reset").addEventListener("click", () => {
+  const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / view.k);
+});
+document.getElementById("btn-clear").addEventListener("click", () => {
+  if (state.nodes.length && !confirm("Clear the whole chart?")) return;
+  state = { nodes: [], edges: [] };
+  selection = null;
+  render(); save();
+});
+
+/* ============================================================
+   mermaid <-> model
+   ============================================================ */
+const quote   = s => '"' + String(s == null ? "" : s).replace(/"/g, "#quot;").replace(/\n/g, "<br/>") + '"';
+const unquote = s => {
+  let t = String(s == null ? "" : s).trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) t = t.slice(1, -1);
+  return t.replace(/<br\s*\/?>/gi, "\n").replace(/#quot;/g, '"').replace(/^\s+|\s+$/g, "");
+};
+
+function toMermaid() {
+  const out = ["flowchart TD"];
+  state.nodes.forEach(n => {
+    const l = quote(n.label);
+    out.push("    " + (n.shape === "circle"  ? `${n.id}((${l}))`
+                     : n.shape === "diamond" ? `${n.id}{${l}}`
+                     : `${n.id}[${l}]`));
+  });
+  state.edges.forEach(e => {
+    out.push("    " + (e.label ? `${e.from} -->|${quote(e.label)}| ${e.to}` : `${e.from} --> ${e.to}`));
+  });
+  // colours, as real mermaid: a classDef per palette colour in use, then class / linkStyle lines
+  COLOR_KEYS.forEach(k => {
+    const ids = state.nodes.filter(n => colorOf(n) === k).map(n => n.id);
+    if (!ids.length) return;
+    out.push(`    classDef ${k} stroke:${COLORS[k]},fill:${MERMAID_FILL[k]},stroke-width:2px`);
+    out.push(`    class ${ids.join(",")} ${k}`);
+  });
+  state.edges.forEach((e, i) => {
+    const k = colorOf(e);
+    if (k) out.push(`    linkStyle ${i} stroke:${COLORS[k]},color:${COLORS[k]}`);
+  });
+  out.push("");
+  out.push("%% flowyo:1 layout metadata — ignored by mermaid, keeps hand-placed positions");
+  state.nodes.forEach(n => out.push(`%% pos ${n.id} ${Math.round(n.x)} ${Math.round(n.y)}`));
+  return out.join("\n");
+}
+
+const SHAPE_TOKEN = "\\(\\(.*?\\)\\)|\\[.*?\\]|\\{.*?\\}";
+const NODE_RE = new RegExp("^([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")\\s*$");
+const EDGE_RE = new RegExp(
+  "^([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")?\\s*" +
+  "(?:-{2,}>|-{3,}|={2,}>|-\\.-+>)\\s*" +
+  "(?:\\|(.*?)\\|)?\\s*" +
+  "([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")?\\s*$");
+
+const hexToKey = hex => {
+  const h = String(hex || "").toLowerCase().slice(0, 7);
+  return COLOR_KEYS.find(k => COLORS[k].toLowerCase() === h) || null;
+};
+
+function fromMermaid(text) {
+  const nodes = [], edges = [], seen = Object.create(null), pos = Object.create(null);
+  const classKey = Object.create(null);      // mermaid class name -> palette key
+  const nodeClass = Object.create(null);     // node id -> mermaid class name
+  const linkColor = Object.create(null);     // link index -> palette key
+
+  const reg = (id, token) => {
+    if (!seen[id]) { seen[id] = { id, shape: "rect", label: id, x: 0, y: 0, w: 0, h: 0 }; nodes.push(seen[id]); }
+    if (token) {
+      const n = seen[id];
+      if (token.startsWith("((")) { n.shape = "circle";  n.label = unquote(token.slice(2, -2)); }
+      else if (token.startsWith("{")) { n.shape = "diamond"; n.label = unquote(token.slice(1, -1)); }
+      else { n.shape = "rect"; n.label = unquote(token.slice(1, -1)); }
+    }
+    return seen[id];
+  };
+
+  String(text || "").split(/\r?\n/).forEach(raw => {
+    let line = raw.trim();
+    if (!line) return;
+    let m = line.match(/^%%\s*pos\s+(\S+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);
+    if (m) { pos[m[1]] = { x: parseFloat(m[2]), y: parseFloat(m[3]) }; return; }
+    if (line.startsWith("%%")) return;
+    if (/^(flowchart|graph)\b/i.test(line)) return;
+
+    m = line.match(/^classDef\s+([A-Za-z0-9_-]+)\s+(.*)$/i);
+    if (m) {
+      const stroke = /stroke\s*:\s*(#[0-9a-f]{3,8})/i.exec(m[2]);
+      classKey[m[1]] = COLORS[m[1]] ? m[1] : (stroke ? hexToKey(stroke[1]) : null);
+      return;
+    }
+    m = line.match(/^class\s+([A-Za-z0-9_.,\s-]+?)\s+([A-Za-z0-9_-]+)\s*;?$/i);
+    if (m) { m[1].split(/[,\s]+/).filter(Boolean).forEach(id => { nodeClass[id] = m[2]; }); return; }
+    m = line.match(/^linkStyle\s+([\d,\s]+)\s+(.*)$/i);
+    if (m) {
+      const stroke = /stroke\s*:\s*(#[0-9a-f]{3,8})/i.exec(m[2]);
+      const k = stroke ? hexToKey(stroke[1]) : null;
+      if (k) m[1].split(/[,\s]+/).filter(Boolean).forEach(i => { linkColor[+i] = k; });
+      return;
+    }
+    if (/^(subgraph|end|style|click|direction)\b/i.test(line)) return;
+
+    line = line.replace(/([A-Za-z0-9_.-]+)((?:\[[^\]]*\]|\(\([^)]*\)\)|\{[^}]*\})?):::([A-Za-z0-9_-]+)/g,
+                        (all, id, shape, cls) => { nodeClass[id] = cls; return id + shape; });
+
+    m = line.match(EDGE_RE);
+    if (m) {
+      reg(m[1], m[2]); reg(m[4], m[5]);
+      if (m[1] !== m[4] && !edges.some(e => e.from === m[1] && e.to === m[4]))
+        edges.push({ id: "e" + m[1] + "_" + m[4], from: m[1], to: m[4], label: m[3] ? unquote(m[3]) : "" });
+      return;
+    }
+    m = line.match(NODE_RE);
+    if (m) { reg(m[1], m[2]); return; }
+    if (/^[A-Za-z0-9_.-]+$/.test(line)) reg(line, null);
+  });
+
+  nodes.forEach(n => {
+    const named = nodeClass[n.id];
+    n.color = (named && classKey[named]) || (COLORS[named] ? named : null) || SHAPE_COLOR[n.shape];
+    resize(n);
+  });
+  edges.forEach((e, i) => { e.color = linkColor[i] || null; });
+  layout(nodes, edges, pos);
+  return { nodes, edges };
+}
+
+/** honour stored positions; auto-place anything that has none (e.g. pasted mermaid) */
+function layout(nodes, edges, pos) {
+  const placed = [];
+  const loose = [];
+  nodes.forEach(n => {
+    if (pos[n.id]) { n.x = pos[n.id].x; n.y = pos[n.id].y; placed.push(n); }
+    else loose.push(n);
+  });
+  if (!loose.length) return;
+
+  // depth = longest path from a root, so the chart reads top-down
+  const depth = Object.create(null);
+  const incoming = Object.create(null);
+  nodes.forEach(n => { depth[n.id] = 0; incoming[n.id] = 0; });
+  edges.forEach(e => { incoming[e.to] = (incoming[e.to] || 0) + 1; });
+  for (let pass = 0; pass < nodes.length; pass++) {
+    let changed = false;
+    edges.forEach(e => {
+      if (depth[e.to] < depth[e.from] + 1) { depth[e.to] = depth[e.from] + 1; changed = true; }
+    });
+    if (!changed) break;
+  }
+  const baseY = placed.length ? Math.max(...placed.map(n => n.y + n.h)) + 120 : 120;
+  const rows = Object.create(null);
+  loose.forEach(n => { (rows[depth[n.id]] = rows[depth[n.id]] || []).push(n); });
+  Object.keys(rows).forEach(d => {
+    const row = rows[d];
+    const gap = 60;
+    const total = row.reduce((s, n) => s + n.w, 0) + gap * (row.length - 1);
+    let x = 420 - total / 2;
+    row.forEach(n => { n.x = Math.round((x + n.w / 2) / GRID) * GRID; x += n.w + gap; });
+    const y = baseY + Number(d) * 150;
+    row.forEach(n => { n.y = Math.round(y / GRID) * GRID; });
+  });
+}
+
+/* ---------- persistence ---------- */
+let savePending = false;
+function writeNow() {
+  clearTimeout(saveTimer);
+  savePending = false;
+  try {
+    localStorage.setItem(STORE_KEY, toMermaid());
+    statusEl.textContent = "Saved " + new Date().toTimeString().slice(0, 5);
+  } catch (err) {
+    statusEl.textContent = "Could not save";
+    console.warn("FlowYo: localStorage unavailable", err);
+  }
+}
+function save() {
+  clearTimeout(saveTimer);
+  savePending = true;
+  statusEl.textContent = "Saving…";
+  saveTimer = setTimeout(writeNow, 250);
+}
+/* never lose the last edit to a quick tab close */
+function flushSave() { if (savePending) writeNow(); }
+window.addEventListener("beforeunload", flushSave);
+window.addEventListener("pagehide", flushSave);
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
+
+function load() {
+  let text = null;
+  try { text = localStorage.getItem(STORE_KEY); } catch (err) { console.warn("FlowYo: localStorage unavailable", err); }
+  if (text == null) {
+    let seeded = null;
+    try { seeded = localStorage.getItem(SEEDED_KEY); } catch (err) { /* ignore */ }
+    if (!seeded) {
+      text = DEMO;
+      try { localStorage.setItem(SEEDED_KEY, "1"); } catch (err) { /* ignore */ }
+    }
+  }
+  const parsed = fromMermaid(text || "");
+  state = parsed;
+  idSeq = 1;
+  state.nodes.forEach(n => {
+    const m = /^n(\d+)$/.exec(n.id);
+    if (m) idSeq = Math.max(idSeq, parseInt(m[1], 10) + 1);
+  });
+  statusEl.textContent = text ? "Loaded from this browser" : "";
+}
+
+const DEMO = [
+  'flowchart TD',
+  '    n1(("Start"))',
+  '    n2["Draw a box"]',
+  '    n3{"Happy with it?"}',
+  '    n4(("Done"))',
+  '    n1 --> n2',
+  '    n2 --> n3',
+  '    n3 --> n4',
+  '%% pos n1 420 100',
+  '%% pos n2 420 250',
+  '%% pos n3 420 410',
+  '%% pos n4 420 570'
+].join("\n");
+
+/* ---------- expose a tiny API (handy for the console / later export work) ---------- */
+window.FlowYo = {
+  get state() { return state; },
+  toMermaid,
+  fromMermaid,
+  load: text => { state = fromMermaid(text); render(); fit(); save(); },
+  render, fit, save
+};
+
+/* ---------- boot ---------- */
+buildMarkers();
+paintTheme();
+load();
+render();
+applyView();
+fit();
+window.addEventListener("resize", applyView);
+</script>
+</body>
+</html>
