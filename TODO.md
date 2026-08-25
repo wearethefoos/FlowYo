@@ -21,12 +21,15 @@ Shipped so far (`index.html`):
 - **Undo / redo** over every mutation — ⌘Z / ⇧⌘Z (or ctrl), plus toolbar buttons that disable at
   the ends of the stack. Snapshot-based, capped at 200 steps; a drag is one step, and ⌘Z inside the
   label editor stays the browser's own text undo
-- Autosave to `localStorage` (`flowyo:chart:v1`) as mermaid, with node positions kept in `%% pos`
-  comments and line breaks written as `<br/>`. The last edit is flushed on tab close
+- **Several charts side by side** — the name button in the toolbar switches between them, and
+  adds, renames, duplicates or deletes (two taps, no modal). Each chart is its own mermaid
+  document; an install from the single-chart days is migrated on first open
+- Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
+  with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
+  flushed on tab close
 
 ## Next up
 
-- [ ] **Multiple charts** — a chart list in localStorage: new, rename, switch, duplicate, delete
 - [ ] **Import mermaid** — paste a mermaid flowchart and lay it out (the parser and auto-layout already
       handle this; `FlowYo.load(text)` works from the console — it just needs UI)
 - [ ] **Export** — copy/download as:

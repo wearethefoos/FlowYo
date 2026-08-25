@@ -99,6 +99,39 @@
   .glyph *{stroke:currentColor;stroke-width:1.8}
   .glyph path[fill="none"]{stroke-linecap:round;stroke-linejoin:round}
   #status{color:var(--muted); font-size:12px; min-width:104px; text-align:right}
+
+  .chart-menu{position:relative}
+  #chart-btn{max-width:220px}
+  #chart-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550}
+  .caret{width:13px; height:13px; opacity:.6}
+  #chart-rename{
+    font:550 14px ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--panel);
+    border:2px solid var(--accent); border-radius:8px;
+    padding:5px 8px; outline:none; width:200px;
+  }
+  .menu{
+    position:absolute; top:calc(100% + 6px); left:0; z-index:40;
+    min-width:230px; max-height:60vh; overflow:auto;
+    padding:5px; border-radius:10px;
+    background:var(--panel); border:1px solid var(--line);
+    box-shadow:var(--shadow);
+  }
+  .menu-item{
+    display:flex; align-items:center; gap:8px; width:100%;
+    border:none; border-radius:7px; background:none;
+    padding:7px 10px; text-align:left; font:inherit;
+  }
+  .menu-item:hover{background:var(--accent-soft); border-color:transparent}
+  .menu-item .tick{width:14px; flex:0 0 auto; opacity:0; color:var(--accent)}
+  .menu-item.current .tick{opacity:1}
+  .menu-item.current{font-weight:600}
+  .menu-item .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .menu-item.action{color:var(--muted); padding-left:32px}
+  .menu-item.action:hover{color:var(--ink)}
+  .menu-item.danger:hover{background:rgba(219,48,105,.12); color:#db3069}
+  .menu-item.armed{background:rgba(219,48,105,.14); color:#db3069; font-weight:600}
+  .menu-sep{height:1px; background:var(--line); margin:5px 8px}
   .swatches{display:flex; gap:5px; align-items:center}
   .swatch{
     padding:0; width:26px; height:26px; border-radius:50%;
@@ -200,6 +233,23 @@
 
 <header id="toolbar">
   <div class="brand"><span class="dot"></span>FlowYo</div>
+  <div class="sep"></div>
+
+  <div class="chart-menu">
+    <button id="chart-btn" aria-haspopup="menu" aria-expanded="false" title="Switch, add or rename charts">
+      <span id="chart-name">Chart</span>
+      <svg class="glyph caret" viewBox="0 0 16 16"><path d="M4 6.5 8 10.5 12 6.5" fill="none"/></svg>
+    </button>
+    <input id="chart-rename" spellcheck="false" hidden>
+    <div id="chart-menu-panel" class="menu" hidden role="menu">
+      <div id="chart-items"></div>
+      <div class="menu-sep"></div>
+      <button class="menu-item action" id="btn-chart-new">New chart</button>
+      <button class="menu-item action" id="btn-chart-rename">Rename…</button>
+      <button class="menu-item action" id="btn-chart-duplicate">Duplicate</button>
+      <button class="menu-item action danger" id="btn-chart-delete">Delete chart</button>
+    </div>
+  </div>
   <div class="sep"></div>
 
   <button class="shape-btn" data-shape="circle" title="Drag onto the canvas, or click to drop one in the middle">
@@ -949,7 +999,7 @@ document.getElementById("btn-zoom-reset").addEventListener("click", () => {
   const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / view.k);
 });
 document.getElementById("btn-clear").addEventListener("click", () => {
-  if (state.nodes.length && !confirm("Clear the whole chart?")) return;
+  if (!state.nodes.length && !state.edges.length) return;
   state = { nodes: [], edges: [] };
   selection = null;
   render(); save();
@@ -1167,18 +1217,228 @@ function updateHistoryButtons() {
 document.getElementById("btn-undo").addEventListener("click", undo);
 document.getElementById("btn-redo").addEventListener("click", redo);
 
+/* ============================================================
+   the chart library
+   localStorage holds an index (`flowyo:charts:v1`) plus one mermaid document
+   per chart (`flowyo:chart:<id>`). Each chart is still a plain mermaid file.
+   ============================================================ */
+const LIBRARY_KEY = "flowyo:charts:v1";
+const chartKey = id => "flowyo:chart:" + id;
+const EMPTY_CHART = "flowchart TD";
+let library = { current: null, charts: [] };
+
+const read = k => { try { return localStorage.getItem(k); } catch (err) { return null; } };
+const write = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (err) {
+  statusEl.textContent = "Could not save";
+  console.warn("FlowYo: localStorage unavailable", err); return false; } };
+const drop = k => { try { localStorage.removeItem(k); } catch (err) { /* ignore */ } };
+
+const currentChart = () => library.charts.find(c => c.id === library.current) || library.charts[0];
+const saveLibrary = () => write(LIBRARY_KEY, JSON.stringify(library));
+
+function freshChartId() {
+  let i = 1;
+  while (library.charts.some(c => c.id === "c" + i)) i++;
+  return "c" + i;
+}
+function uniqueName(base) {
+  if (!library.charts.some(c => c.name === base)) return base;
+  let i = 2;
+  while (library.charts.some(c => c.name === base + " " + i)) i++;
+  return base + " " + i;
+}
+
+function loadLibrary() {
+  let index = null;
+  try { index = JSON.parse(read(LIBRARY_KEY) || "null"); } catch (err) { index = null; }
+  if (index && Array.isArray(index.charts) && index.charts.length) {
+    library = { current: index.current, charts: index.charts };
+    if (!currentChart()) library.current = library.charts[0].id;
+    return;
+  }
+  // first run, or an upgrade from the single-chart layout
+  const legacy = read(STORE_KEY);
+  library = { current: "c1", charts: [{ id: "c1", name: legacy ? "My chart" : "Getting started" }] };
+  write(chartKey("c1"), legacy || DEMO);
+  if (legacy) drop(STORE_KEY);
+  drop(SEEDED_KEY);
+  saveLibrary();
+}
+
+/** read the current chart out of storage and put it on the canvas */
+function openCurrent(frame) {
+  const text = read(chartKey(library.current));
+  state = fromMermaid(text == null ? EMPTY_CHART : text);
+  selection = null;
+  idSeq = 1;
+  state.nodes.forEach(n => {
+    const m = /^n(\d+)$/.exec(n.id);
+    if (m) idSeq = Math.max(idSeq, parseInt(m[1], 10) + 1);
+  });
+  resetHistory();
+  render();
+  if (frame !== false) fit();
+  renderChartMenu();
+  statusEl.textContent = "";
+}
+
+function switchChart(id) {
+  if (id === library.current) return;
+  flushSave();                       // the pending write belongs to the chart we are leaving
+  commitEditing(true);
+  library.current = id;
+  saveLibrary();
+  openCurrent();
+}
+
+function newChart(name, text) {
+  flushSave();
+  commitEditing(true);
+  const id = freshChartId();
+  library.charts.push({ id, name: uniqueName(name || "Untitled chart") });
+  write(chartKey(id), text == null ? EMPTY_CHART : text);
+  library.current = id;
+  saveLibrary();
+  openCurrent();
+  return id;
+}
+
+function duplicateChart() {
+  flushSave();
+  const c = currentChart();
+  return newChart(uniqueName(c.name + " copy"), toMermaid());
+}
+
+function renameChart(name) {
+  const c = currentChart();
+  const clean = String(name || "").trim();
+  if (!c || !clean || clean === c.name) return false;
+  c.name = library.charts.some(x => x !== c && x.name === clean) ? uniqueName(clean) : clean;
+  saveLibrary();
+  renderChartMenu();
+  return true;
+}
+
+function deleteChart(id) {
+  const i = library.charts.findIndex(c => c.id === id);
+  if (i < 0) return;
+  library.charts.splice(i, 1);
+  drop(chartKey(id));
+  if (!library.charts.length) {
+    library.current = null;
+    saveLibrary();
+    newChart("Untitled chart", EMPTY_CHART);
+    return;
+  }
+  if (library.current === id) library.current = library.charts[Math.min(i, library.charts.length - 1)].id;
+  saveLibrary();
+  openCurrent();
+}
+
+/* ---------- the chart menu ---------- */
+const chartBtn = document.getElementById("chart-btn");
+const chartPanel = document.getElementById("chart-menu-panel");
+const chartItems = document.getElementById("chart-items");
+const chartNameEl = document.getElementById("chart-name");
+const chartRename = document.getElementById("chart-rename");
+const deleteBtn = document.getElementById("btn-chart-delete");
+
+function renderChartMenu() {
+  const c = currentChart();
+  chartNameEl.textContent = c ? c.name : "Chart";
+  chartBtn.title = library.charts.length > 1
+    ? `${c ? c.name : ""} — ${library.charts.length} charts` : "Switch, add or rename charts";
+  chartItems.textContent = "";
+  library.charts.forEach(entry => {
+    const b = document.createElement("button");
+    b.className = "menu-item" + (entry.id === library.current ? " current" : "");
+    b.dataset.chart = entry.id;
+    b.setAttribute("role", "menuitem");
+    b.innerHTML = '<span class="tick">✓</span><span class="name"></span>';
+    b.querySelector(".name").textContent = entry.name;
+    b.addEventListener("click", () => { closeChartMenu(); switchChart(entry.id); });
+    chartItems.appendChild(b);
+  });
+  deleteBtn.disabled = false;
+}
+
+function openChartMenu() {
+  renderChartMenu();
+  disarmDelete();
+  chartPanel.hidden = false;
+  chartBtn.setAttribute("aria-expanded", "true");
+}
+function closeChartMenu() {
+  chartPanel.hidden = true;
+  chartBtn.setAttribute("aria-expanded", "false");
+  disarmDelete();
+}
+const chartMenuOpen = () => !chartPanel.hidden;
+function disarmDelete() { deleteBtn.classList.remove("armed"); deleteBtn.textContent = "Delete chart"; }
+
+chartBtn.addEventListener("click", ev => {
+  ev.stopPropagation();
+  chartMenuOpen() ? closeChartMenu() : openChartMenu();
+});
+document.addEventListener("click", ev => {
+  if (chartMenuOpen() && !ev.target.closest(".chart-menu")) closeChartMenu();
+});
+
+document.getElementById("btn-chart-new").addEventListener("click", () => {
+  closeChartMenu();
+  newChart("Untitled chart", EMPTY_CHART);
+  startRename();
+});
+document.getElementById("btn-chart-duplicate").addEventListener("click", () => {
+  closeChartMenu();
+  duplicateChart();
+});
+document.getElementById("btn-chart-rename").addEventListener("click", () => {
+  closeChartMenu();
+  startRename();
+});
+deleteBtn.addEventListener("click", () => {
+  if (!deleteBtn.classList.contains("armed")) {      // two taps rather than a modal
+    deleteBtn.classList.add("armed");
+    deleteBtn.textContent = "Really delete?";
+    return;
+  }
+  const id = library.current;
+  closeChartMenu();
+  deleteChart(id);
+});
+
+/* rename happens in place of the chart button */
+function startRename() {
+  const c = currentChart();
+  if (!c) return;
+  chartRename.value = c.name;
+  chartRename.hidden = false;
+  chartBtn.hidden = true;
+  chartRename.focus();
+  chartRename.select();
+}
+function endRename(keep) {
+  if (chartRename.hidden) return;
+  chartRename.hidden = true;
+  chartBtn.hidden = false;
+  if (keep) renameChart(chartRename.value);
+  renderChartMenu();
+}
+chartRename.addEventListener("keydown", ev => {
+  if (ev.key === "Enter") { ev.preventDefault(); endRename(true); }
+  else if (ev.key === "Escape") { ev.preventDefault(); endRename(false); }
+  ev.stopPropagation();
+});
+chartRename.addEventListener("blur", () => endRename(true));
+
 /* ---------- persistence ---------- */
 let savePending = false;
 function writeNow() {
   clearTimeout(saveTimer);
   savePending = false;
-  try {
-    localStorage.setItem(STORE_KEY, toMermaid());
+  if (write(chartKey(library.current), toMermaid()))
     statusEl.textContent = "Saved " + new Date().toTimeString().slice(0, 5);
-  } catch (err) {
-    statusEl.textContent = "Could not save";
-    console.warn("FlowYo: localStorage unavailable", err);
-  }
 }
 function save() {
   pushHistory();
@@ -1194,25 +1454,8 @@ window.addEventListener("pagehide", flushSave);
 document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
 
 function load() {
-  let text = null;
-  try { text = localStorage.getItem(STORE_KEY); } catch (err) { console.warn("FlowYo: localStorage unavailable", err); }
-  if (text == null) {
-    let seeded = null;
-    try { seeded = localStorage.getItem(SEEDED_KEY); } catch (err) { /* ignore */ }
-    if (!seeded) {
-      text = DEMO;
-      try { localStorage.setItem(SEEDED_KEY, "1"); } catch (err) { /* ignore */ }
-    }
-  }
-  const parsed = fromMermaid(text || "");
-  state = parsed;
-  resetHistory();
-  idSeq = 1;
-  state.nodes.forEach(n => {
-    const m = /^n(\d+)$/.exec(n.id);
-    if (m) idSeq = Math.max(idSeq, parseInt(m[1], 10) + 1);
-  });
-  statusEl.textContent = text ? "Loaded from this browser" : "";
+  loadLibrary();
+  openCurrent(false);
 }
 
 const DEMO = [
@@ -1238,6 +1481,9 @@ window.FlowYo = {
   load: text => { state = fromMermaid(text); render(); fit(); save(); },
   render, fit, save,
   undo, redo,
+  charts: () => JSON.parse(JSON.stringify(library)),
+  stored: id => read(chartKey(id || library.current)),
+  newChart, switchChart, duplicateChart, renameChart, deleteChart,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 
@@ -1248,6 +1494,7 @@ load();
 render();
 applyView();
 fit();
+renderChartMenu();
 window.addEventListener("resize", applyView);
 </script>
 </body>

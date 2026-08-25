@@ -91,7 +91,7 @@ suite('undo and redo', async (t) => {
   check('undo restores the colour', await colour(target) === 'cobalt', await colour(target));
 
   /* ---------- 7. storage follows the undo immediately ---------- */
-  const stored = await page.evaluate(() => localStorage.getItem('flowyo:chart:v1'));
+  const stored = await page.evaluate(() => window.FlowYo.stored());
   const live = await page.evaluate(() => window.FlowYo.toMermaid());
   check('localStorage matches the undone state', stored === live, { stored, live });
 

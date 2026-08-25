@@ -24,6 +24,7 @@ open index.html          # or: pnpm start
 | recolour something | select it, then a swatch or keys **1**–**4** |
 | delete something | select it and press **Delete** |
 | undo / redo | **⌘Z** and **⇧⌘Z** (or ctrl), or the two arrows in the toolbar |
+| keep several charts | the name button in the toolbar — switch, add, rename, duplicate, delete |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
@@ -33,8 +34,16 @@ exported to mermaid uses the true palette hex.
 
 ## Storage format
 
-The autosaved value in `localStorage["flowyo:chart:v1"]` *is* the chart's mermaid source,
-so it can be pasted into any mermaid renderer as-is:
+Charts live in `localStorage` as an index plus one document each:
+
+```
+flowyo:charts:v1   {"current":"c2","charts":[{"id":"c1","name":"Getting started"}, …]}
+flowyo:chart:c1    the mermaid source of that chart
+flowyo:chart:c2    …
+```
+
+Each document *is* the chart's mermaid source, so it can be pasted into any mermaid
+renderer as-is:
 
 ```mermaid
 flowchart TD
@@ -86,6 +95,7 @@ hook, so nothing needs unblocking.
 | `04-colour` | palette defaults, swatches, keyboard, colour in the serialized output |
 | `05-mermaid` | hands FlowYo's output to the **real mermaid library** and asks it to parse |
 | `06-undo` | the history stack: every mutation, the redo tail, and ⌘Z inside the label editor |
+| `07-charts` | the chart library: switching, renaming, duplicating, deleting, migration |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently

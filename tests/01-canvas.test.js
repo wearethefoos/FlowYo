@@ -91,8 +91,8 @@ suite('canvas, shapes, dragging and the mermaid round trip', async (t) => {
 
     // 8. mermaid persisted to localStorage
     await page.waitForTimeout(400);
-    const stored = await page.evaluate(() => localStorage.getItem('flowyo:chart:v1'));
-    check('localStorage holds mermaid', /^flowchart TD/.test(stored || ''), (stored || '').slice(0, 40));
+    const stored = await page.evaluate(() => window.FlowYo.stored());
+    check('the chart is stored as mermaid', /^flowchart TD/.test(stored || ''), (stored || '').slice(0, 40));
     check('mermaid has circle syntax', /\(\(".*?"\)\)/.test(stored), stored);
     check('mermaid has diamond syntax', /\{".*?"\}/.test(stored), stored);
     check('mermaid has rect syntax', /\[".*?"\]/.test(stored), stored);
