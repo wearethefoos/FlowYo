@@ -97,6 +97,7 @@
   .shape-btn{touch-action:none}
   .glyph{display:inline-block;width:16px;height:16px;flex:0 0 auto}
   .glyph *{stroke:currentColor;stroke-width:1.8}
+  .glyph path[fill="none"]{stroke-linecap:round;stroke-linejoin:round}
   #status{color:var(--muted); font-size:12px; min-width:104px; text-align:right}
   .swatches{display:flex; gap:5px; align-items:center}
   .swatch{
@@ -220,6 +221,12 @@
   </div>
 
   <div class="sep"></div>
+  <button id="btn-undo" class="icon" title="Undo (⌘Z)" aria-label="Undo">
+    <svg class="glyph" viewBox="0 0 16 16"><path d="M6 4 2.6 7.4 6 10.8M2.9 7.4h6.4a4 4 0 0 1 0 8H7" fill="none"/></svg>
+  </button>
+  <button id="btn-redo" class="icon" title="Redo (⇧⌘Z)" aria-label="Redo">
+    <svg class="glyph" viewBox="0 0 16 16"><path d="M10 4l3.4 3.4L10 10.8M13.1 7.4H6.7a4 4 0 0 0 0 8H9" fill="none"/></svg>
+  </button>
   <button id="btn-delete" class="icon" title="Delete selection (Delete)">Delete</button>
 
   <div class="spacer"></div>
@@ -260,6 +267,7 @@
   <span><kbd>double-click</kbd> a shape or an arrow to label it &mdash; <kbd>shift + enter</kbd> for a line break</span>
   <span><kbd>⌥/alt + drag</kbd> copies a shape</span>
   <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> or the dots recolour the selection</span>
+  <span><kbd>⌘/ctrl + Z</kbd> undoes, <kbd>⇧⌘/ctrl + Z</kbd> redoes</span>
   <span><kbd>Delete</kbd> removes the selection</span>
   <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>drag</kbd> empty space pans, <kbd>shift</kbd> ignores the grid</span>
 </footer>
@@ -906,9 +914,13 @@ function ghostSvg(shape) {
 
 /* ---------- keyboard ---------- */
 window.addEventListener("keydown", ev => {
-  if (editing) return;
+  if (editing) return;                       // inside the label editor ⌘Z is the browser's own text undo
   const t = ev.target;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+  const mod = ev.metaKey || ev.ctrlKey;
+  if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); return; }
+  if (mod) return;                           // leave every other shortcut to the browser
   if (/^[1-9]$/.test(ev.key) && COLOR_KEYS[+ev.key - 1] && selection) {
     ev.preventDefault(); setColor(COLOR_KEYS[+ev.key - 1]);
   }
@@ -1097,6 +1109,64 @@ function layout(nodes, edges, pos) {
   });
 }
 
+/* ============================================================
+   undo / redo
+   Snapshots rather than inverse operations: the model is small, JSON is exact,
+   and every mutation already funnels through save() — so history hooks in there
+   and nothing can quietly skip it.
+   ============================================================ */
+const HISTORY_LIMIT = 200;
+let history = [], hIndex = -1, restoring = false;
+
+const snapshot = () => JSON.stringify(state);
+
+function resetHistory() {
+  history = [snapshot()];
+  hIndex = 0;
+  updateHistoryButtons();
+}
+
+function pushHistory() {
+  if (restoring) return;
+  const shot = snapshot();
+  if (history[hIndex] === shot) return;          // nothing actually changed
+  history.length = hIndex + 1;                   // a new branch discards the redo tail
+  history.push(shot);
+  if (history.length > HISTORY_LIMIT) history.shift();
+  hIndex = history.length - 1;
+  updateHistoryButtons();
+}
+
+function restoreHistory(i) {
+  if (i < 0 || i >= history.length || i === hIndex) return false;
+  commitEditing(true);
+  hIndex = i;
+  restoring = true;
+  state = JSON.parse(history[i]);
+  // the selection may point at something that no longer exists
+  if (selection && !(selection.kind === "node"
+        ? nodeById(selection.id)
+        : state.edges.some(e => e.id === selection.id))) selection = null;
+  render();
+  writeNow();
+  restoring = false;
+  updateHistoryButtons();
+  return true;
+}
+
+const canUndo = () => hIndex > 0;
+const canRedo = () => hIndex < history.length - 1;
+const undo = () => { if (restoreHistory(hIndex - 1)) statusEl.textContent = "Undone"; };
+const redo = () => { if (restoreHistory(hIndex + 1)) statusEl.textContent = "Redone"; };
+
+function updateHistoryButtons() {
+  const u = document.getElementById("btn-undo"), r = document.getElementById("btn-redo");
+  if (u) u.disabled = !canUndo();
+  if (r) r.disabled = !canRedo();
+}
+document.getElementById("btn-undo").addEventListener("click", undo);
+document.getElementById("btn-redo").addEventListener("click", redo);
+
 /* ---------- persistence ---------- */
 let savePending = false;
 function writeNow() {
@@ -1111,6 +1181,7 @@ function writeNow() {
   }
 }
 function save() {
+  pushHistory();
   clearTimeout(saveTimer);
   savePending = true;
   statusEl.textContent = "Saving…";
@@ -1135,6 +1206,7 @@ function load() {
   }
   const parsed = fromMermaid(text || "");
   state = parsed;
+  resetHistory();
   idSeq = 1;
   state.nodes.forEach(n => {
     const m = /^n(\d+)$/.exec(n.id);
@@ -1164,7 +1236,9 @@ window.FlowYo = {
   toMermaid,
   fromMermaid,
   load: text => { state = fromMermaid(text); render(); fit(); save(); },
-  render, fit, save
+  render, fit, save,
+  undo, redo,
+  history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 
 /* ---------- boot ---------- */

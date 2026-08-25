@@ -18,12 +18,14 @@ Shipped so far (`index.html`):
 - Double-click a shape **or an arrow** to label it; **shift + enter** puts in a soft line break,
   enter commits, escape cancels. Shapes resize to fit; clearing an arrow's label removes it
 - Select a shape or a connector and remove it with the Delete button or the Delete/Backspace key
+- **Undo / redo** over every mutation — ⌘Z / ⇧⌘Z (or ctrl), plus toolbar buttons that disable at
+  the ends of the stack. Snapshot-based, capped at 200 steps; a drag is one step, and ⌘Z inside the
+  label editor stays the browser's own text undo
 - Autosave to `localStorage` (`flowyo:chart:v1`) as mermaid, with node positions kept in `%% pos`
   comments and line breaks written as `<br/>`. The last edit is flushed on tab close
 
 ## Next up
 
-- [ ] **Undo / redo** — history stack for add, move, rename, connect, delete (⌘Z / ⇧⌘Z)
 - [ ] **Multiple charts** — a chart list in localStorage: new, rename, switch, duplicate, delete
 - [ ] **Import mermaid** — paste a mermaid flowchart and lay it out (the parser and auto-layout already
       handle this; `FlowYo.load(text)` works from the console — it just needs UI)

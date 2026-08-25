@@ -23,6 +23,7 @@ open index.html          # or: pnpm start
 | label something | double-click a shape or an arrow; **shift + enter** for a line break |
 | recolour something | select it, then a swatch or keys **1**–**4** |
 | delete something | select it and press **Delete** |
+| undo / redo | **⌘Z** and **⇧⌘Z** (or ctrl), or the two arrows in the toolbar |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
@@ -84,6 +85,7 @@ hook, so nothing needs unblocking.
 | `03-connectors` | growing a connected shape from a handle, centred connector labels |
 | `04-colour` | palette defaults, swatches, keyboard, colour in the serialized output |
 | `05-mermaid` | hands FlowYo's output to the **real mermaid library** and asks it to parse |
+| `06-undo` | the history stack: every mutation, the redo tail, and ⌘Z inside the label editor |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently
