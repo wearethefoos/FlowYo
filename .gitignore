@@ -1,0 +1,7 @@
+node_modules/
+
+# this project uses pnpm
+package-lock.json
+yarn.lock
+tests/screenshots/
+.DS_Store

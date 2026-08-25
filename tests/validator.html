@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mermaid validator</title>
+<!-- Loaded by 05-mermaid.test.js: parses FlowYo's output with the real mermaid library. -->
+<div id="out">loading</div>
+<script type="module">
+  import mermaid from '/node_modules/mermaid/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false });
+  window.validate = async (text) => {
+    try { await mermaid.parse(text); return 'OK'; }
+    catch (e) { return 'ERR: ' + (e && e.message ? e.message : String(e)); }
+  };
+  document.getElementById('out').textContent = 'ready';
+</script>

@@ -1,0 +1,19 @@
+{
+  "name": "flowyo",
+  "version": "0.4.0",
+  "private": true,
+  "description": "A browser flowchart editor. Renders SVG, stores mermaid in localStorage.",
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:headed": "HEADED=1 node tests/run.js",
+    "start": "node -e \"const{spawn}=require('child_process');const o=process.platform==='darwin'?'open':'xdg-open';spawn(o,['index.html'],{stdio:'inherit'})\""
+  },
+  "devDependencies": {
+    "mermaid": "^11.17.1",
+    "playwright": "1.56.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}
