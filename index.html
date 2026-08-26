@@ -88,7 +88,7 @@
     cursor:pointer;
     display:inline-flex; align-items:center; gap:7px;
     transition:background .12s, border-color .12s, transform .06s;
-    user-select:none;
+    user-select:none; white-space:nowrap;
   }
   button:hover{background:var(--accent-soft); border-color:var(--accent)}
   button:active{transform:translateY(1px)}
@@ -132,6 +132,14 @@
   .menu-item.danger:hover{background:rgba(219,48,105,.12); color:#db3069}
   .menu-item.armed{background:rgba(219,48,105,.14); color:#db3069; font-weight:600}
   .menu-sep{height:1px; background:var(--line); margin:5px 8px}
+  .menu.right{left:auto; right:0}
+
+  .split{display:flex; position:relative}
+  .split > button:first-child{border-top-right-radius:0; border-bottom-right-radius:0; border-right-color:transparent}
+  .split > .caret-btn{border-top-left-radius:0; border-bottom-left-radius:0; padding:6px 7px}
+  .split > button:first-child:hover + .caret-btn,
+  .split > .caret-btn:hover{border-color:var(--accent)}
+  .split > button:first-child:hover{border-right-color:transparent}
 
   /* ---------- sheet ---------- */
   .sheet{
@@ -298,6 +306,7 @@
       <button class="menu-item action" id="btn-chart-new">New chart</button>
       <button class="menu-item action" id="btn-chart-rename">Rename…</button>
       <button class="menu-item action" id="btn-chart-duplicate">Duplicate</button>
+      <button class="menu-item action" id="btn-chart-clear">Clear this chart</button>
       <button class="menu-item action" id="btn-chart-import">Import mermaid…</button>
       <button class="menu-item action" id="btn-chart-export">Export…</button>
       <button class="menu-item action danger" id="btn-chart-delete">Delete chart</button>
@@ -338,7 +347,19 @@
   <button id="btn-zoom-in" class="icon" title="Zoom in">+</button>
   <button id="btn-fit" class="icon" title="Fit chart to screen">Fit</button>
   <div class="sep"></div>
-  <button id="btn-clear" class="icon" title="Start a new empty chart">Clear</button>
+  <div class="split" id="export-split">
+    <button id="btn-export" title="Copy the chart (⇧⌘C)">Copy image</button>
+    <button id="btn-export-caret" class="caret-btn" aria-haspopup="menu" aria-expanded="false"
+            aria-label="Choose what to copy"><svg class="glyph caret" viewBox="0 0 16 16"><path d="M4 6.5 8 10.5 12 6.5" fill="none"/></svg></button>
+    <div id="export-menu" class="menu right" hidden role="menu">
+      <button class="menu-item" data-copy="png" role="menuitem"><span class="tick">✓</span><span class="name">Copy image</span></button>
+      <button class="menu-item" data-copy="markdown" role="menuitem"><span class="tick">✓</span><span class="name">Copy Markdown</span></button>
+      <button class="menu-item" data-copy="mermaid" role="menuitem"><span class="tick">✓</span><span class="name">Copy Mermaid</span></button>
+      <button class="menu-item" data-copy="svg" role="menuitem"><span class="tick">✓</span><span class="name">Copy SVG</span></button>
+      <div class="menu-sep"></div>
+      <button class="menu-item action" id="btn-export-sheet" role="menuitem">Export…</button>
+    </div>
+  </div>
   <span id="status"></span>
 </header>
 
@@ -407,6 +428,7 @@
   <span><kbd>⌥/alt + drag</kbd> copies a shape</span>
   <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> or the dots recolour the selection</span>
   <span><kbd>⌘/ctrl + Z</kbd> undoes, <kbd>⇧⌘/ctrl + Z</kbd> redoes</span>
+  <span><kbd>⇧⌘/ctrl + C</kbd> copies the chart</span>
   <span><kbd>Delete</kbd> removes the selection</span>
   <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>drag</kbd> empty space pans, <kbd>shift</kbd> ignores the grid</span>
 </footer>
@@ -1063,6 +1085,7 @@ window.addEventListener("keydown", ev => {
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
   if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); return; }
+  if (mod && ev.shiftKey && ev.key.toLowerCase() === "c") { ev.preventDefault(); runCopy(copyFormat); return; }
   if (mod) return;                           // leave every other shortcut to the browser
   if (/^[1-9]$/.test(ev.key) && COLOR_KEYS[+ev.key - 1] && selection) {
     ev.preventDefault(); setColor(COLOR_KEYS[+ev.key - 1]);
@@ -1091,7 +1114,8 @@ document.getElementById("btn-zoom-out").addEventListener("click", () => {
 document.getElementById("btn-zoom-reset").addEventListener("click", () => {
   const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / view.k);
 });
-document.getElementById("btn-clear").addEventListener("click", () => {
+document.getElementById("btn-chart-clear").addEventListener("click", () => {
+  closeChartMenu();
   if (!state.nodes.length && !state.edges.length) return;
   state = { nodes: [], edges: [] };
   selection = null;
@@ -1765,6 +1789,85 @@ async function copyText(text) {
 document.querySelectorAll("#export-tabs .tab").forEach(b =>
   b.addEventListener("click", () => showExport(b.dataset.format)));
 
+/* ============================================================
+   the Copy split-button
+   One click copies; the caret picks what "copy" means, and that choice sticks.
+   ============================================================ */
+const COPY_KEY = "flowyo:copy:v1";
+const COPY_LABEL = { png: "Copy image", markdown: "Copy Markdown", mermaid: "Copy Mermaid", svg: "Copy SVG" };
+const copyBtn = document.getElementById("btn-export");
+const copyCaret = document.getElementById("btn-export-caret");
+const copyMenu = document.getElementById("export-menu");
+let copyFormat = "png";
+let copyResetTimer = null;
+
+function setCopyFormat(format, remember) {
+  copyFormat = COPY_LABEL[format] ? format : "png";
+  copyBtn.textContent = COPY_LABEL[copyFormat];
+  copyMenu.querySelectorAll("[data-copy]").forEach(b =>
+    b.classList.toggle("current", b.dataset.copy === copyFormat));
+  if (remember !== false) write(COPY_KEY, copyFormat);
+}
+
+function flashCopy(message, bad) {
+  statusEl.textContent = message;
+  copyBtn.textContent = bad ? COPY_LABEL[copyFormat] : "Copied ✓";
+  clearTimeout(copyResetTimer);
+  copyResetTimer = setTimeout(() => { copyBtn.textContent = COPY_LABEL[copyFormat]; }, 1600);
+}
+
+/** the image goes on the clipboard as a real PNG; if the browser refuses, save it instead */
+async function copyImage() {
+  const blob = await toPngBlob();
+  if (navigator.clipboard && window.ClipboardItem && navigator.clipboard.write) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      return "clipboard";
+    } catch (err) { /* fall through to a download */ }
+  }
+  saveAs(slug(currentChart() ? currentChart().name : "flowchart") + ".png", blob, "image/png");
+  return "download";
+}
+
+async function runCopy(format) {
+  if (format === "png") {
+    flashCopy("Rendering…", true);
+    try {
+      const how = await copyImage();
+      flashCopy(how === "clipboard" ? "Image copied" : "Clipboard refused it — saved the PNG instead");
+    } catch (err) {
+      flashCopy("Could not make an image: " + err.message, true);
+    }
+    return;
+  }
+  const payload = exportPayload(format);
+  const ok = await copyText(payload.text);
+  if (ok) flashCopy(COPY_LABEL[format].replace("Copy ", "") + " copied");
+  else flashCopy("The browser would not let us copy", true);
+}
+
+const copyMenuOpen = () => !copyMenu.hidden;
+function openCopyMenu() { copyMenu.hidden = false; copyCaret.setAttribute("aria-expanded", "true"); }
+function closeCopyMenu() { copyMenu.hidden = true; copyCaret.setAttribute("aria-expanded", "false"); }
+
+copyBtn.addEventListener("click", () => { closeCopyMenu(); runCopy(copyFormat); });
+copyCaret.addEventListener("click", ev => {
+  ev.stopPropagation();
+  copyMenuOpen() ? closeCopyMenu() : openCopyMenu();
+});
+document.addEventListener("click", ev => {
+  if (copyMenuOpen() && !ev.target.closest("#export-split")) closeCopyMenu();
+});
+copyMenu.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", () => {
+  closeCopyMenu();
+  setCopyFormat(b.dataset.copy);        // the pick becomes the button's default
+  runCopy(copyFormat);
+}));
+document.getElementById("btn-export-sheet").addEventListener("click", () => {
+  closeCopyMenu();
+  openSheet("export");
+});
+
 exportCopy.addEventListener("click", async () => {
   const payload = exportPayload(exportFormat);
   const ok = await copyText(payload.text);
@@ -1815,6 +1918,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) flush
 
 function load() {
   loadLibrary();
+  setCopyFormat(read(COPY_KEY) || "png", false);
   openCurrent(false);
 }
 
@@ -1848,6 +1952,7 @@ window.FlowYo = {
   openExport: () => openSheet("export"),
   closeSheet,
   toSvgString, toPngBlob, exportPayload,
+  copyFormat: () => copyFormat, setCopyFormat, runCopy,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 

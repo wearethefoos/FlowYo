@@ -26,7 +26,9 @@ open index.html          # or: pnpm start
 | undo / redo | **⌘Z** and **⇧⌘Z** (or ctrl), or the two arrows in the toolbar |
 | keep several charts | the name button in the toolbar — switch, add, rename, duplicate, delete |
 | import a chart | **Import mermaid…** in that menu — paste it, then add it or replace this one |
-| get it out | **Export…** in that menu — mermaid, Markdown, SVG or a 2× PNG |
+| copy the chart | the **Copy** button (**⇧⌘C**) — the caret beside it picks image, Markdown, mermaid or SVG, and that choice sticks |
+| download it | **Export…** from the caret or the chart menu — the same four formats as files |
+| empty a chart | **Clear this chart** in the chart menu (undoable) |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
@@ -64,8 +66,9 @@ flowchart TD
 %% pos n3 420 410
 ```
 
-**Export…** in the chart menu will also hand you this as a `.mmd` file, wrapped in a
-fenced block as Markdown, as a standalone SVG, or rasterised to a 2× PNG.
+The **Copy** button puts any of that on the clipboard in one click — the image by default,
+or whichever format you picked last. **Export…** gives you the same four as downloads,
+with a preview.
 
 Shapes, labels (with `<br/>` line breaks) and colours are all real mermaid. Only the
 hand-placed coordinates live in `%%` comments, which mermaid ignores — so nothing is lost
@@ -103,6 +106,7 @@ hook, so nothing needs unblocking.
 | `07-charts` | the chart library: switching, renaming, duplicating, deleting, migration |
 | `08-import` | pasting mermaid in: what it accepts, what it refuses, and where it lands |
 | `09-export` | all four formats: content, the real downloaded files, and the PNG bytes |
+| `10-copy-button` | the Copy split-button: default action, remembered format, clipboard fallback |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently

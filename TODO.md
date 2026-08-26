@@ -27,9 +27,12 @@ Shipped so far (`index.html`):
 - **Import mermaid** — paste a chart into the sheet and it tells you what it reads before you commit;
   take it as a new chart or replace the open one (a single undo step). Anything without `%% pos` is
   laid out automatically and written back with its new layout
-- **Export** — copy or download the chart as mermaid (`.mmd`), Markdown (a fenced ```mermaid block),
-  a standalone SVG, or a 2× PNG. The SVG is the on-screen drawing with the editing furniture removed
-  and the theme's palette resolved into it, so it stands alone anywhere
+- **Copy / export** — the toolbar's **Copy** button (⇧⌘C) puts the chart on the clipboard: the image
+  by default, or Markdown, mermaid or SVG from the caret beside it, and that choice is remembered.
+  **Export…** opens the full sheet with a preview and downloads of the same four. The SVG is the
+  on-screen drawing with the editing furniture removed and the theme's palette resolved into it, so
+  it stands alone anywhere; the image copy falls back to a download if the browser blocks the
+  clipboard. **Clear this chart** lives in the chart menu (and is undoable)
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
   flushed on tab close
