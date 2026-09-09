@@ -30,11 +30,31 @@ open index.html          # or: pnpm start
 | download it | **Export…** from the caret or the chart menu — the same four formats as files |
 | empty a chart | **Clear this chart** in the chart menu (undoable) |
 | navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
+| on a phone | drag to move, tap to select, double-tap to label, pinch to zoom, one finger on empty canvas to pan |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
 blue, razzmatazz and royal gold colour the shapes — a bright border over a faded fill.
 Light mode deepens the gold border slightly so it reads on the beige canvas; everything
 exported to mermaid uses the true palette hex.
+
+## On a touch screen
+
+It works by thumb. A few things are deliberately different from the mouse:
+
+- Connector handles appear when you **tap a shape** (there is no hover to reveal them) and
+  sit *outside* the outline, so the middle of a shape always means "move me". Touch
+  hit-testing is fuzzy — browsers will happily snap a fingertip onto a small target tens of
+  pixels away — so the app also measures where your finger actually landed before deciding
+  you meant a handle.
+- **Double-tap** renames a shape or an arrow. A prevented touch `pointerdown` never becomes
+  a `dblclick`, and the second tap is only recognised as one once the gesture ends — at
+  `pointerdown` a second tap and the start of a drag look identical.
+- **Pinch** zooms and pans together; a second finger landing mid-drag hands over to the
+  pinch and leaves the shape where it was.
+- The toolbar wraps instead of scrolling, so nothing hides off the edge, and the zoom
+  buttons drop out (pinch replaces them).
+
+Alt-drag to copy and shift-drag to ignore the grid have no touch equivalent yet.
 
 ## Storage format
 
@@ -107,6 +127,7 @@ hook, so nothing needs unblocking.
 | `08-import` | pasting mermaid in: what it accepts, what it refuses, and where it lands |
 | `09-export` | all four formats: content, the real downloaded files, and the PNG bytes |
 | `10-copy-button` | the Copy split-button: default action, remembered format, clipboard fallback |
+| `11-touch` | an emulated phone driven by real touch events: dragging, connecting, double-tap, pinch, layout |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently
@@ -115,6 +136,9 @@ prepends the new text instead of replacing it. The helper uses Playwright's
 
 `tests/harness.js` holds the shared bits: it launches the browser, clears storage, collects
 console and page errors, and exposes helpers (`centre`, `hoverAnchor`, `edgePoint`, `fit`).
+A suite marked `{ touch: true }` gets an emulated iPhone plus `t.touch` — tap, doubleTap,
+drag and pinch, dispatched through CDP as genuine touch events with a **14px finger
+radius**, because the bugs that only bite real thumbs vanish if you dispatch a 1px point.
 A suite exits non-zero if any check fails, and drops a screenshot into `tests/screenshots/`
 when something goes wrong.
 

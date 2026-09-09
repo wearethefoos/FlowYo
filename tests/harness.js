@@ -16,7 +16,7 @@
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 
 const ROOT = path.join(__dirname, '..');
 const APP = 'file://' + path.join(ROOT, 'index.html');
@@ -98,15 +98,70 @@ function helpers(page) {
   return { state, fit, centre, edgePoint, hoverAnchor, selectAll };
 }
 
+/* ---------- touch, dispatched as real touch events ---------- */
+/**
+ * Playwright's page.touchscreen only taps, so drags and pinches go through CDP.
+ * The finger radius matters: browsers do fuzzy hit-testing on touch, and bugs that
+ * only bite real thumbs disappear if you dispatch a 1px point.
+ */
+async function touchKit(page, context) {
+  const cdp = await context.newCDPSession(page);
+  const point = (x, y, id = 1) => ({ x: Math.round(x), y: Math.round(y), id, radiusX: 14, radiusY: 14, force: 1 });
+  const send = (type, touchPoints) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints });
+
+  const tap = async (x, y) => {
+    await send('touchStart', [point(x, y)]);
+    await page.waitForTimeout(40);
+    await send('touchEnd', []);
+    await page.waitForTimeout(140);
+  };
+  const doubleTap = async (x, y) => {
+    await tap(x, y);
+    await page.waitForTimeout(60);
+    await send('touchStart', [point(x, y)]);
+    await page.waitForTimeout(40);
+    await send('touchEnd', []);
+    await page.waitForTimeout(180);
+  };
+  const drag = async (from, to, steps = 8) => {
+    await send('touchStart', [point(from.x, from.y)]);
+    for (let i = 1; i <= steps; i++) {
+      await send('touchMove', [point(from.x + (to.x - from.x) * i / steps, from.y + (to.y - from.y) * i / steps)]);
+      await page.waitForTimeout(16);
+    }
+    await send('touchEnd', []);
+    await page.waitForTimeout(150);
+  };
+  /** two fingers moving apart (spread > 1) or together (spread < 1) about a centre */
+  const pinch = async (centre, spread, steps = 8) => {
+    const gap = 60;
+    const a = { x: centre.x - gap, y: centre.y - gap }, b = { x: centre.x + gap, y: centre.y + gap };
+    await send('touchStart', [point(a.x, a.y, 1), point(b.x, b.y, 2)]);
+    for (let i = 1; i <= steps; i++) {
+      const f = 1 + (spread - 1) * i / steps;
+      await send('touchMove', [
+        point(centre.x - gap * f, centre.y - gap * f, 1),
+        point(centre.x + gap * f, centre.y + gap * f, 2)
+      ]);
+      await page.waitForTimeout(16);
+    }
+    await send('touchEnd', []);
+    await page.waitForTimeout(150);
+  };
+  return { tap, doubleTap, drag, pinch, send, point };
+}
+
 /* ---------- the suite wrapper ---------- */
 function suite(title, fn, opts = {}) {
   (async () => {
     const t0 = Date.now();
     const browser = await chromium.launch({ headless: !process.env.HEADED });
-    const page = await browser.newPage({
-      viewport: { width: 1280, height: 860 },
-      colorScheme: opts.colorScheme || 'light'
-    });
+    // a phone when the suite asks for one, otherwise a desktop window
+    const context = await browser.newContext(opts.touch
+      ? Object.assign({}, devices['iPhone 13'], { colorScheme: opts.colorScheme || 'light' })
+      : { viewport: { width: 1280, height: 860 }, colorScheme: opts.colorScheme || 'light' });
+    const page = await context.newPage();
+    const touch = opts.touch ? await touchKit(page, context) : null;
 
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
@@ -133,7 +188,7 @@ function suite(title, fn, opts = {}) {
       await page.reload();
       await page.waitForTimeout(300);
 
-      await fn(Object.assign({ page, check, browser, errors, server }, helpers(page)));
+      await fn(Object.assign({ page, check, browser, context, errors, server, touch }, helpers(page)));
     } catch (err) {
       fails++; total++;
       console.log('  FAIL suite threw  -> ' + (err && err.stack ? err.stack : err));

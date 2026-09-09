@@ -33,6 +33,9 @@ Shipped so far (`index.html`):
   on-screen drawing with the editing furniture removed and the theme's palette resolved into it, so
   it stands alone anywhere; the image copy falls back to a download if the browser blocks the
   clipboard. **Clear this chart** lives in the chart menu (and is undoable)
+- **Works on a phone** — drag to move, tap to select (handles appear outside the shape, finger-sized),
+  double-tap to label, pinch to zoom, one finger on empty canvas to pan. The toolbar wraps so nothing
+  hides off the edge
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
   flushed on tab close
@@ -47,6 +50,7 @@ The original backlog is done. Pick from the ideas below, or:
 
 - [ ] More shapes: rounded/stadium `([ ])`, subroutine `[[ ]]`, cylinder `[( )]`
 - [ ] Custom colours beyond the four palette slots, and per-chart theming
+- [ ] A touch equivalent for ⌥-drag (copy) and ⇧-drag (ignore the grid) — long-press, maybe
 - [ ] Export in the *other* theme, or on a transparent background, rather than what's on screen
 - [ ] Orthogonal / elbow connector routing instead of straight lines
 - [ ] Drag an arrow's endpoint onto a different shape to re-route it

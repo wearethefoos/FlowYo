@@ -53,6 +53,8 @@
   html,body{height:100%}
   body{
     margin:0;
+    overscroll-behavior:none;
+    -webkit-tap-highlight-color:transparent;
     font:14px/1.45 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--ink);
     background:var(--bg);
@@ -96,6 +98,7 @@
   button.icon{padding:6px 9px}
   .shape-btn{touch-action:none}
   .glyph{display:inline-block;width:16px;height:16px;flex:0 0 auto}
+  #btn-delete .trash{display:none}
   .glyph *{stroke:currentColor;stroke-width:1.8}
   .glyph path[fill="none"]{stroke-linecap:round;stroke-linejoin:round}
   #status{color:var(--muted); font-size:12px; min-width:104px; text-align:right}
@@ -239,10 +242,12 @@
   .node.selected .sel-ring{opacity:.75}
 
   .anchor{
-    fill:var(--panel); stroke:var(--c, var(--accent)); stroke-width:1.8;
+    fill:var(--panel); stroke:var(--c, var(--accent));
+    r:calc(5px / var(--vk, 1)); stroke-width:calc(1.8px / var(--vk, 1));
     opacity:0; pointer-events:none; transition:opacity .1s;
     cursor:crosshair;
   }
+  @media (pointer: coarse){ .anchor{r:calc(9px / var(--vk, 1)); stroke-width:calc(2.2px / var(--vk, 1))} }
   .node:hover .anchor, .node.selected .anchor{opacity:1; pointer-events:all}
   .anchor:hover{fill:var(--c, var(--accent))}
   .node.droptarget .node-shape{stroke-width:3; filter:none}
@@ -282,6 +287,30 @@
     padding:7px 14px; font-size:12px; color:var(--muted);
     background:var(--panel); border-top:1px solid var(--line);
   }
+  /* ---------- narrow screens ---------- */
+  @media (max-width: 760px){
+    /* wrap rather than scroll, so nothing important hides off the edge */
+    #toolbar{flex-wrap:wrap; gap:6px; padding:7px 10px}
+    #toolbar > *{flex:0 0 auto}
+    .spacer{display:none}
+    .btn-label{display:none}
+    #btn-delete .trash{display:block}
+    .brand{padding-right:2px; margin-right:0}
+    #status, #btn-zoom-in, #btn-zoom-out, #btn-zoom-reset{display:none}
+    #btn-export{max-width:none}
+    #chart-btn{max-width:112px}
+    .sep{margin:0 1px}
+    #hints{
+      flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+      -webkit-overflow-scrolling:touch; gap:14px; padding:6px 10px;
+    }
+    #hints::-webkit-scrollbar{display:none}
+    #hints span{flex:0 0 auto}
+    .sheet{padding:10px}
+    #import-text, #export-text, #export-preview{height:min(240px, 34vh)}
+    .menu{max-height:56vh}
+  }
+
   kbd{
     font:inherit; font-size:11px; background:var(--bg); border:1px solid var(--line);
     border-bottom-width:2px; border-radius:4px; padding:1px 5px; color:var(--ink);
@@ -291,7 +320,7 @@
 <body>
 
 <header id="toolbar">
-  <div class="brand"><span class="dot"></span>FlowYo</div>
+  <div class="brand"><span class="dot"></span><span class="btn-label">FlowYo</span></div>
   <div class="sep"></div>
 
   <div class="chart-menu">
@@ -315,13 +344,13 @@
   <div class="sep"></div>
 
   <button class="shape-btn" data-shape="circle" title="Drag onto the canvas, or click to drop one in the middle">
-    <svg class="glyph" viewBox="0 0 16 16" style="color:#db3069"><circle cx="8" cy="8" r="6" fill="#db306922"/></svg>Circle
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#db3069"><circle cx="8" cy="8" r="6" fill="#db306922"/></svg><span class="btn-label">Circle</span>
   </button>
   <button class="shape-btn" data-shape="rect" title="Drag onto the canvas, or click to drop one in the middle">
-    <svg class="glyph" viewBox="0 0 16 16" style="color:#1446a0"><rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="#1446a022"/></svg>Square
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#1446a0"><rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="#1446a022"/></svg><span class="btn-label">Square</span>
   </button>
   <button class="shape-btn" data-shape="diamond" title="Drag onto the canvas, or click to drop one in the middle">
-    <svg class="glyph" viewBox="0 0 16 16" style="color:#e2ba1c"><path d="M8 1.8 14.2 8 8 14.2 1.8 8Z" fill="#f5d54744"/></svg>Diamond
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#e2ba1c"><path d="M8 1.8 14.2 8 8 14.2 1.8 8Z" fill="#f5d54744"/></svg><span class="btn-label">Diamond</span>
   </button>
 
   <div class="sep"></div>
@@ -339,7 +368,10 @@
   <button id="btn-redo" class="icon" title="Redo (⇧⌘Z)" aria-label="Redo">
     <svg class="glyph" viewBox="0 0 16 16"><path d="M10 4l3.4 3.4L10 10.8M13.1 7.4H6.7a4 4 0 0 0 0 8H9" fill="none"/></svg>
   </button>
-  <button id="btn-delete" class="icon" title="Delete selection (Delete)">Delete</button>
+  <button id="btn-delete" class="icon" title="Delete selection (Delete)">
+    <svg class="glyph trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5" fill="none"/></svg>
+    <span class="btn-label">Delete</span>
+  </button>
 
   <div class="spacer"></div>
   <button id="btn-zoom-out" class="icon" title="Zoom out">&minus;</button>
@@ -444,6 +476,12 @@
 const STORE_KEY   = "flowyo:chart:v1";
 const SEEDED_KEY  = "flowyo:seeded:v1";
 const GRID        = 10;   // drag snap
+const TOUCH_SLOP  = 14;   // how far a finger may land from a handle and still mean it
+/* With a mouse the handles sit on the outline, where you can slide onto them without
+   leaving the shape. A finger has no hover to lose and needs the elbow room, so on
+   touch screens they float outside instead. */
+const COARSE      = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+const ANCHOR_OUT  = COARSE ? 12 : 0;
 const LINE_H      = 19;   // node label line height
 const EDGE_LINE_H = 15;   // connector label line height
 const EDGE_FONT   = '500 12px ui-sans-serif,system-ui,sans-serif';
@@ -641,7 +679,7 @@ function renderNode(n) {
   g.appendChild(nodeOutline(n, "sel-ring", 7));
   g.appendChild(textEl("node-label", n.label, 0, 1, LINE_H));
   for (const [ax, ay] of ANCHORS) {
-    const p = borderPoint(n, ax, ay);
+    const p = borderPoint(n, ax, ay, ANCHOR_OUT);   // outside the shape, clear of the drag area
     const a = el("circle", { class: "anchor", cx: p.x - n.x, cy: p.y - n.y, r: 5,
                              "data-anchor": ax + "," + ay });
     g.appendChild(a);
@@ -756,6 +794,7 @@ function redrawEdgesFor(id) {
 /* ---------- viewport ---------- */
 function applyView() {
   gView.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  svg.style.setProperty("--vk", view.k);      // keeps the handles a constant size on screen
   gridBg.setAttribute("fill", "url(#grid-small)");
   const p = document.querySelector("#grid-small");
   const s = 20 * view.k;
@@ -853,12 +892,66 @@ editor.addEventListener("input", positionEditor);
 editor.addEventListener("blur", () => commitEditing(true));
 
 /* ---------- canvas interaction ---------- */
+/* two fingers on the canvas mean zoom-and-pan, whatever the first one was doing */
+const livePointers = new Map();
+let pinch = null;
+let lastTap = null;
+
+function abortDrag() {
+  if (!drag) return;
+  if (drag.type === "node") {
+    gNodes.querySelectorAll(".dragging").forEach(x => x.classList.remove("dragging"));
+    if (drag.moved || drag.cloned) save();
+  } else if (drag.type === "connect") {
+    gNodes.querySelectorAll(".droptarget").forEach(x => x.classList.remove("droptarget"));
+    tempEdge.removeAttribute("d");
+  }
+  svg.classList.remove("panning", "connecting");
+  drag = null;
+}
+
+function startPinch() {
+  abortDrag();
+  const [a, b] = [...livePointers.values()];
+  pinch = {
+    dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+    mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    k: view.k, vx: view.x, vy: view.y
+  };
+}
+
+function updatePinch() {
+  const [a, b] = [...livePointers.values()];
+  if (!a || !b) return;
+  const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const r = svg.getBoundingClientRect();
+  const k = clamp(pinch.k * (dist / pinch.dist), 0.25, 3);
+  const f = k / pinch.k;
+  view.k = k;
+  view.x = (mid.x - r.left) - ((pinch.mid.x - r.left) - pinch.vx) * f;
+  view.y = (mid.y - r.top) - ((pinch.mid.y - r.top) - pinch.vy) * f;
+  applyView();
+}
+
 svg.addEventListener("pointerdown", ev => {
   if (ev.button !== 0) return;
+  livePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (livePointers.size === 2) { commitEditing(true); startPinch(); ev.preventDefault(); return; }
+  if (livePointers.size > 2) return;
   commitEditing(true);
-  const anchor = ev.target.closest(".anchor");
+  let   anchor = ev.target.closest(".anchor");
   let   nodeG  = ev.target.closest(".node");
   const edgeG  = ev.target.closest(".edge");
+
+  // Touch hit-testing is fuzzy: the browser happily snaps a fingertip onto a small
+  // handle several tens of pixels away, which turns "drag the shape" into "draw an
+  // arrow". Only honour a handle the finger actually landed on.
+  if (anchor && ev.pointerType !== "mouse") {
+    const r = anchor.getBoundingClientRect();
+    const reach = Math.max(r.width, r.height) / 2 + TOUCH_SLOP;
+    if (Math.hypot(ev.clientX - (r.x + r.width / 2), ev.clientY - (r.y + r.height / 2)) > reach) anchor = null;
+  }
 
   if (anchor && nodeG) {
     const n = nodeById(nodeG.dataset.id);
@@ -888,7 +981,11 @@ svg.addEventListener("pointerdown", ev => {
     ev.preventDefault();
     return;
   }
-  if (edgeG) { select("edge", edgeG.dataset.id); return; }
+  if (edgeG) {
+    select("edge", edgeG.dataset.id);
+    drag = { type: "edge", id: edgeG.dataset.id };   // so a second tap can open its label
+    return;
+  }
 
   select(null);
   drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y };
@@ -897,6 +994,8 @@ svg.addEventListener("pointerdown", ev => {
 });
 
 svg.addEventListener("pointermove", ev => {
+  if (livePointers.has(ev.pointerId)) livePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pinch) { updatePinch(); return; }
   if (!drag) return;
   if (drag.type === "pan") {
     view.x = drag.vx + (ev.clientX - drag.sx);
@@ -959,11 +1058,32 @@ function growFrom(fromId, at, dir) {
   startEditing("node", n);
 }
 
+/**
+ * A touch pointerdown that we preventDefault() never becomes a dblclick, so the second
+ * tap has to be spotted by hand — and only once the gesture is over, because at
+ * pointerdown a second tap and the start of a drag look exactly alike.
+ */
+function tappedAgain(ev) {
+  if (!ev || ev.pointerType === "mouse") return false;
+  const now = (performance && performance.now) ? performance.now() : Date.now();
+  const again = lastTap && now - lastTap.t < 400 &&
+                Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < 26;
+  lastTap = again ? null : { t: now, x: ev.clientX, y: ev.clientY };
+  return again;
+}
+
 function endDrag(ev) {
   if (!drag) return;
-  if (drag.type === "node") {
+  if (drag.type === "edge") {
+    const e = state.edges.find(x => x.id === drag.id);
+    if (e && tappedAgain(ev)) startEditing("edge", e);
+  } else if (drag.type === "node") {
     gNodes.querySelectorAll(".dragging").forEach(x => x.classList.remove("dragging"));
-    if (drag.moved || drag.cloned) save();
+    if (drag.moved || drag.cloned) { lastTap = null; save(); }
+    else {
+      const n = nodeById(drag.id);
+      if (n && tappedAgain(ev)) startEditing("node", n);
+    }
   } else if (drag.type === "connect") {
     gNodes.querySelectorAll(".droptarget").forEach(x => x.classList.remove("droptarget"));
     tempEdge.removeAttribute("d");
@@ -988,8 +1108,14 @@ function endDrag(ev) {
   drag = null;
 }
 function endDragEvent(ev) {
-  if (ev && ev.pointerId != null && svg.hasPointerCapture && svg.hasPointerCapture(ev.pointerId))
-    svg.releasePointerCapture(ev.pointerId);
+  if (ev && ev.pointerId != null) {
+    livePointers.delete(ev.pointerId);
+    if (svg.hasPointerCapture && svg.hasPointerCapture(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
+  }
+  if (pinch) {                       // don't resume a gesture the second finger interrupted
+    if (livePointers.size < 2) { pinch = null; drag = null; }
+    return;
+  }
   endDrag(ev);
 }
 svg.addEventListener("pointerup", endDragEvent);
@@ -1952,6 +2078,7 @@ window.FlowYo = {
   openExport: () => openSheet("export"),
   closeSheet,
   toSvgString, toPngBlob, exportPayload,
+  view: () => ({ ...view }),
   copyFormat: () => copyFormat, setCopyFormat, runCopy,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
