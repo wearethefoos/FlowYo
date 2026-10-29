@@ -482,7 +482,7 @@
   <span><kbd>drag</kbd> a shape from the toolbar &mdash; or <kbd>⌥/alt</kbd> + <kbd>A</kbd><kbd>C</kbd><kbd>S</kbd><kbd>D</kbd><kbd>P</kbd></span>
   <span><kbd>drag</kbd> a blue handle to connect; <kbd>click</kbd> one, or <kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd><kbd>←</kbd>, to grow the next shape</span>
   <span><kbd>double-click</kbd> to label &mdash; <kbd>shift + enter</kbd> for a line break</span>
-  <span><kbd>A</kbd><kbd>C</kbd><kbd>S</kbd><kbd>D</kbd><kbd>P</kbd> change the selected shape, <kbd>space</kbd> flips an arrow's ends</span>
+  <span><kbd>C</kbd><kbd>S</kbd><kbd>D</kbd><kbd>P</kbd> change the selected shape, <kbd>space</kbd> flips an arrow's ends</span>
   <span><kbd>drag</kbd> empty space to select a group, <kbd>shift + click</kbd> adds, <kbd>⌥/alt + drag</kbd> copies</span>
   <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> recolour, <kbd>Delete</kbd> removes, <kbd>⌘/ctrl + Z</kbd> undoes, <kbd>⇧⌘/ctrl + C</kbd> copies the chart</span>
   <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>⌥/alt + drag</kbd> empty space pans, <kbd>⌘/ctrl</kbd> ignores the grid</span>
@@ -1512,7 +1512,7 @@ window.addEventListener("keydown", ev => {
       render(); select("node", n.id); save();
       if (shape !== "arrow") startEditing("node", n, "label");
     } else {
-      convertSelection(shape);
+      convertSelection(shape);             // a no-op for A, which only ever adds
     }
     return;
   }
@@ -1547,17 +1547,15 @@ window.addEventListener("keydown", ev => {
    turning one shape into another, and cycling an arrow's ends
    ============================================================ */
 
-/** changes a shape in place, keeping its label, position and any colour you chose */
+/**
+ * Changes a shape in place, keeping its label, position and any colour you chose.
+ * Not to an arrow: an arrow is a free-standing annotation, not a step, so turning
+ * a box into one is never what anyone means. ⌥A adds one instead.
+ */
 function convertShape(n, shape) {
-  if (!n || n.shape === shape || !SHAPE_COLOR[shape]) return false;
+  if (!n || n.shape === shape || !SHAPE_COLOR[shape] || shape === "arrow") return false;
   const wasDefault = n.color === SHAPE_COLOR[n.shape];
-  if (shape === "arrow") {
-    n.hx = Math.max(60, n.w / 2);
-    n.hy = 0;
-    n.ends = n.ends || "one";
-    n.labelBack = n.labelBack || "";
-    state.edges = state.edges.filter(e => e.from !== n.id && e.to !== n.id);   // arrows carry no connectors
-  }
+  if (isArrow(n)) { delete n.hx; delete n.hy; delete n.ends; delete n.labelBack; }
   n.shape = shape;
   if (wasDefault) n.color = SHAPE_COLOR[shape];
   resize(n);

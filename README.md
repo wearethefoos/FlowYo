@@ -16,7 +16,7 @@ open index.html          # or: pnpm start
 | | |
 |---|---|
 | add a shape | drag one from the toolbar, or click it to drop one in the middle; **⌥A C S D P** adds one from the keyboard |
-| change a shape | select it and press **A** (arrow), **C** (circle), **S** (square), **D** (diamond) or **P** (person) |
+| change a shape | select it and press **C** (circle), **S** (square), **D** (diamond) or **P** (person) — an arrow is not a shape you convert *to*, only one you add |
 | move a shape | drag it (snaps to a 10px grid; hold **⌘/ctrl** to place freely) |
 | select several | drag a box across the canvas; **shift + click** adds one; they move, recolour and delete together |
 | copy a shape | **⌥/alt + drag** it |

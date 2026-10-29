@@ -42,7 +42,8 @@ Shipped so far (`index.html`):
   each carrying its own label (placed so they can never overlap)
 - **Multi-select** — drag a box over the canvas (⌥ + drag pans instead), shift + click to add or
   remove; the group moves, recolours, converts, copies and deletes as one
-- **Keyboard**: ⌥ + A/C/S/D/P adds a shape, A/C/S/D/P alone converts the selected ones, the arrow
+- **Keyboard**: ⌥ + A/C/S/D/P adds a shape, C/S/D/P alone converts the selected ones (A only ever adds —
+  an arrow is an annotation, not a step you turn a box into), the arrow
   keys grow a connected shape that way, space cycles an arrow's ends, backspace deletes
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is

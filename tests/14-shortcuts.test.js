@@ -60,17 +60,28 @@ suite('keyboard shortcuts', async (t) => {
   await press('KeyS');
   check('a colour you picked survives the change', (await st()).nodes.find(n => n.id === 'n2').color === 'gold');
 
+  // A is the one letter that does not convert: an arrow is an annotation, not a step
+  const wasShape = (await st()).nodes.find(n => n.id === 'n2').shape;
+  const edgesWere = (await st()).edges.length;
   await press('KeyA');
   let n2 = (await st()).nodes.find(n => n.id === 'n2');
-  check('A turns it into an arrow', n2.shape === 'arrow' && n2.hx > 0, n2);
-  check('which drops the connectors it can no longer have', (await st()).edges.length === 0);
+  check('A leaves the selected shape alone', n2.shape === wasShape, n2);
+  check('and leaves its connectors alone', (await st()).edges.length === edgesWere);
+  check('⌥A still adds an arrow', await (async () => {
+    const before = (await st()).nodes.length;
+    await press('Alt+KeyA');
+    return (await st()).nodes.length === before + 1 && (await st()).nodes.slice(-1)[0].shape === 'arrow';
+  })());
+
+  // an arrow can still become a shape, which is the direction that makes sense
   await press('KeyC');
-  n2 = (await st()).nodes.find(n => n.id === 'n2');
-  check('and it can come back as a circle', n2.shape === 'circle' && n2.w > 0, n2);
+  const wasArrow = (await st()).nodes.slice(-1)[0];
+  check('C turns the selected arrow into a circle', wasArrow.shape === 'circle' && wasArrow.w > 0, wasArrow);
+  check('and the arrow-only fields go with it', wasArrow.hx === undefined && wasArrow.ends === undefined, wasArrow);
   check('one keystroke is one undo step', await (async () => {
     await page.keyboard.press('ControlOrMeta+z');
     await page.waitForTimeout(150);
-    return (await st()).nodes.find(n => n.id === 'n2').shape === 'arrow';
+    return (await st()).nodes.slice(-1)[0].shape === 'arrow';
   })());
 
   /* ---------- 3. changing a whole group ---------- */
