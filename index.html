@@ -543,6 +543,46 @@ const PAIR_OFFSET = 7;    // how far each line of a two-way pair sits off centre
 const END_STYLES = ["one", "both", "pair"];
 const SHAPE_LIST = Object.keys(SHAPE_COLOR);
 const ARROW_DIRS = { ArrowUp: [0, -1], ArrowRight: [1, 0], ArrowDown: [0, 1], ArrowLeft: [-1, 0] };
+
+/* ---------- which letter was that, really? ----------
+   ev.code is the physical key, which only spells the right letter on QWERTY —
+   on Dvorak the key marked C reports KeyI. ev.key is the honest answer on every
+   layout, except that macOS turns ⌥ + letter into the character from the Option
+   layer ("å" for ⌥A, "ç" for ⌥C, wherever those letters happen to sit). So read
+   ev.key first, translate the Option layer when that is what arrived, and only
+   then fall back to asking the browser what the physical key currently types. */
+const OPTION_LAYER = {
+  "å": "a", "Å": "a", "ç": "c", "Ç": "c", "ß": "s", "Í": "s",
+  "∂": "d", "Î": "d", "π": "p", "∏": "p"
+};
+let layoutMap = null;
+function refreshLayout() {
+  try {
+    if (navigator.keyboard && navigator.keyboard.getLayoutMap)
+      navigator.keyboard.getLayoutMap().then(m => { layoutMap = m; }, () => {});
+  } catch (err) { /* not every browser knows the layout */ }
+}
+refreshLayout();
+window.addEventListener("focus", refreshLayout);
+try {
+  if (navigator.keyboard && navigator.keyboard.addEventListener)
+    navigator.keyboard.addEventListener("layoutchange", refreshLayout);
+} catch (err) { /* ignore */ }
+
+function letterOf(ev) {
+  const k = ev.key;
+  if (typeof k === "string" && k.length === 1) {
+    const lower = k.toLowerCase();
+    if (lower >= "a" && lower <= "z") return lower;
+    if (OPTION_LAYER[k]) return OPTION_LAYER[k];
+  }
+  if (layoutMap) {
+    const typed = layoutMap.get(ev.code);
+    if (typed && typed.length === 1 && /[a-zA-Z]/.test(typed)) return typed.toLowerCase();
+  }
+  const physical = /^Key([A-Z])$/.exec(ev.code || "");
+  return physical ? physical[1].toLowerCase() : null;
+}
 const colorOf = o => (o && COLORS[o.color] ? o.color : null);
 
 const NS = "http://www.w3.org/2000/svg";
@@ -1500,9 +1540,7 @@ window.addEventListener("keydown", ev => {
   if (mod && ev.shiftKey && ev.key.toLowerCase() === "c") { ev.preventDefault(); runCopy(copyFormat); return; }
   if (mod) return;                           // leave every other shortcut to the browser
 
-  // ⌥ changes what the letters mean, and on a Mac it also changes ev.key — so read ev.code
-  const code = /^Key([A-Z])$/.exec(ev.code || "");
-  const letter = code ? code[1].toLowerCase() : null;
+  const letter = letterOf(ev);
   if (letter && SHAPE_KEYS[letter]) {
     ev.preventDefault();
     const shape = SHAPE_KEYS[letter];
@@ -2503,6 +2541,7 @@ window.FlowYo = {
   selection: () => JSON.parse(JSON.stringify(selection)),
   selectMany, select,
   copyFormat: () => copyFormat, setCopyFormat, runCopy,
+  letterOf,
   convertSelection, cycleEnds,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };

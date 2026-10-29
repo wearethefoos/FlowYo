@@ -166,6 +166,10 @@ Anything typed into a field goes through `t.selectAll()` rather than a hard-code
 prepends the new text instead of replacing it. The helper uses Playwright's
 `ControlOrMeta`.
 
+Playwright types on a US layout, so the layout-independence checks in `14-shortcuts`
+dispatch the key/code pairs other layouts actually produce (on Dvorak the key marked C
+reports `KeyI`; on macOS ⌥C arrives as "ç").
+
 `tests/harness.js` holds the shared bits: it launches the browser, clears storage, collects
 console and page errors, and exposes helpers (`centre`, `hoverAnchor`, `edgePoint`, `fit`).
 A suite marked `{ touch: true }` gets an emulated iPhone plus `t.touch` — tap, doubleTap,

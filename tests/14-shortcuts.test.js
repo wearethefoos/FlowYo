@@ -147,7 +147,39 @@ suite('keyboard shortcuts', async (t) => {
   await press('Space');
   check('space cycles a free arrow too', (await st()).nodes.find(n => n.id === arrowId).ends === 'both');
 
-  /* ---------- 6. delete and the editor ---------- */
+  /* ---------- 6. other keyboard layouts ---------- */
+  // Playwright types on a US layout, so send the key/code pairs other layouts
+  // really produce. On Dvorak the key marked C sits where QWERTY has I.
+  const sendKey = (key, code, alt) => page.evaluate(([k, c, a]) => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: k, code: c, altKey: !!a, bubbles: true, cancelable: true }));
+  }, [key, code, alt]).then(() => page.waitForTimeout(160));
+
+  check('the letter is read from the key, not its place on the board', await page.evaluate(() => [
+    window.FlowYo.letterOf({ key: 'c', code: 'KeyI' }),          // Dvorak C
+    window.FlowYo.letterOf({ key: 'p', code: 'KeyR' }),          // Dvorak P
+    window.FlowYo.letterOf({ key: 'å', code: 'KeyA' }),          // macOS ⌥A, US
+    window.FlowYo.letterOf({ key: 'ç', code: 'KeyI' }),          // macOS ⌥C, Dvorak
+    window.FlowYo.letterOf({ key: 'Î', code: 'KeyE' }),          // macOS ⇧⌥D, Dvorak
+    window.FlowYo.letterOf({ key: 'Dead', code: 'KeyS' })        // nothing legible: fall back to the key itself
+  ].join(',')) === 'c,p,a,c,d,s');
+
+  await reset();
+  await pick('n2');
+  await sendKey('c', 'KeyI');
+  check('a Dvorak C converts the selection', (await st()).nodes.find(n => n.id === 'n2').shape === 'circle');
+  await sendKey('j', 'KeyC');
+  check('and the key that merely sits where QWERTY keeps C does not', (await st()).nodes.find(n => n.id === 'n2').shape === 'circle');
+
+  let count = (await st()).nodes.length;
+  await sendKey('ç', 'KeyI', true);
+  check('a Dvorak ⌥C on macOS adds a circle', (await st()).nodes.length === count + 1 && (await st()).nodes.slice(-1)[0].shape === 'circle', await st());
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+  count = (await st()).nodes.length;
+  await sendKey('å', 'KeyA', true);
+  check('and ⌥A adds an arrow whatever the layout', (await st()).nodes.length === count + 1 && (await st()).nodes.slice(-1)[0].shape === 'arrow');
+
+  /* ---------- 7. delete and the editor ---------- */
   await reset();
   await pick('n2');
   await press('Backspace');
