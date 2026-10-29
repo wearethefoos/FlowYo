@@ -25,6 +25,23 @@ suite('output parses as real mermaid', async (t) => {
     s.nodes[0].label = 'He said "hi" & <b> 100%';
     out['escaped characters'] = window.FlowYo.toMermaid();
 
+    // the shapes and links mermaid has no spelling for, plus the ones it does
+    window.FlowYo.load([
+      'flowchart TD',
+      '    A["Alice"]',
+      '    B["Review"]',
+      '    C(("Done"))',
+      '    A <-->|"checks with"| B',
+      '    B -->|"yes"| C',
+      '    C -->|"again"| B',
+      '%% pos A 100 100',
+      '%% pos B 100 300',
+      '%% pos C 100 500',
+      '%% shape A person',
+      '%% arrow a1 400 100 560 240 pair cobalt "out" "back"'
+    ].join('\n'));
+    out['people, free arrows and two-way links'] = window.FlowYo.toMermaid();
+
     // a chart imported without positions, laid out from scratch
     window.FlowYo.load('flowchart TD\n  A[Order received] --> B{In stock?}\n  B -->|yes| C((Ship))\n  B -->|no| D[Backorder]\n  D --> C\n');
     out['an imported chart'] = window.FlowYo.toMermaid();
@@ -47,6 +64,16 @@ suite('output parses as real mermaid', async (t) => {
   const withColour = samples['labels, line breaks and colours'];
   check('colours are written as classDef/class', /classDef gunmetal stroke:#3c3c3b/.test(withColour) && /class \w+ gunmetal/.test(withColour), withColour);
   check('arrow colours are written as linkStyle', /linkStyle 2 stroke:#db3069/.test(withColour), withColour);
+  const extra = samples['people, free arrows and two-way links'];
+  check('a person rides as a plain box, with the shape noted in a comment',
+    /A\["Alice"\]/.test(extra) && /^%% shape A person$/m.test(extra), extra);
+  check('a free arrow stays entirely inside comments',
+    /^%% arrow a1 /m.test(extra) && !/^\s{4}a1/m.test(extra), extra);
+  check('a two-way link is written with mermaid\'s own <--> ',
+    /A <-->\|"checks with"\| B/.test(extra), extra);
+  check('a pair of opposite links comes back out as two links',
+    /B -->\|"yes"\| C/.test(extra) && /C -->\|"again"\| B/.test(extra), extra);
+
   check('layout metadata stays inside %% comments',
     withColour.split('\n').filter(l => /pos n\d/.test(l)).every(l => l.trim().startsWith('%%')), withColour);
 

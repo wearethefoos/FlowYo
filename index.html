@@ -66,7 +66,7 @@
 
   /* ---------- toolbar ---------- */
   #toolbar{
-    display:flex; align-items:center; gap:8px;
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap; row-gap:6px;
     padding:8px 12px;
     background:var(--panel);
     border-bottom:1px solid var(--line);
@@ -103,6 +103,7 @@
   .glyph path[fill="none"]{stroke-linecap:round;stroke-linejoin:round}
   #status{color:var(--muted); font-size:12px; min-width:104px; text-align:right}
 
+  .group{display:flex; align-items:center; gap:6px}
   .chart-menu{position:relative}
   #chart-btn{max-width:220px}
   #chart-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550}
@@ -233,9 +234,19 @@
     pointer-events:none;
     user-select:none;
   }
+  .person-box{fill:transparent; stroke:none; filter:none}
+  .node:hover .person-box{fill:var(--cf, transparent)}
+  .person-part{
+    fill:var(--cf, var(--node-fill));
+    stroke:var(--c, var(--node-stroke));
+    stroke-width:2; stroke-linejoin:round;
+  }
+  .arrow-node .sel-ring{stroke-dasharray:4 4}
+  .anchor.endpoint{cursor:move}
   .node{cursor:grab}
   .node.dragging{cursor:grabbing}
   .node:hover .node-shape{stroke-width:2.6}
+  .node:hover .person-part, .node.selected .person-part{stroke-width:2.6}
 
   /* selection reads as a dashed ring in the ink colour, so it never fights the shape's own colour */
   .sel-ring{fill:none; stroke:var(--ink); stroke-width:1.4; stroke-dasharray:5 4; opacity:0; pointer-events:none}
@@ -262,6 +273,12 @@
   }
   .edge-label-bg{fill:var(--bg); cursor:pointer}
   #temp-edge{fill:none; stroke:var(--accent); stroke-width:2; stroke-dasharray:5 4; pointer-events:none}
+  #marquee{
+    fill:var(--accent); fill-opacity:.10;
+    stroke:var(--accent); stroke-width:calc(1.2px / var(--vk, 1));
+    stroke-dasharray:calc(5px / var(--vk, 1)) calc(4px / var(--vk, 1));
+    pointer-events:none;
+  }
 
   #label-editor{
     position:absolute; display:none; z-index:10;
@@ -343,14 +360,20 @@
   </div>
   <div class="sep"></div>
 
-  <button class="shape-btn" data-shape="circle" title="Drag onto the canvas, or click to drop one in the middle">
+  <button class="shape-btn" data-shape="circle" title="Drag onto the canvas, or click to drop one in the middle (⌥C)">
     <svg class="glyph" viewBox="0 0 16 16" style="color:#db3069"><circle cx="8" cy="8" r="6" fill="#db306922"/></svg><span class="btn-label">Circle</span>
   </button>
-  <button class="shape-btn" data-shape="rect" title="Drag onto the canvas, or click to drop one in the middle">
+  <button class="shape-btn" data-shape="rect" title="Drag onto the canvas, or click to drop one in the middle (⌥S)">
     <svg class="glyph" viewBox="0 0 16 16" style="color:#1446a0"><rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="#1446a022"/></svg><span class="btn-label">Square</span>
   </button>
-  <button class="shape-btn" data-shape="diamond" title="Drag onto the canvas, or click to drop one in the middle">
+  <button class="shape-btn" data-shape="diamond" title="Drag onto the canvas, or click to drop one in the middle (⌥D)">
     <svg class="glyph" viewBox="0 0 16 16" style="color:#e2ba1c"><path d="M8 1.8 14.2 8 8 14.2 1.8 8Z" fill="#f5d54744"/></svg><span class="btn-label">Diamond</span>
+  </button>
+  <button class="shape-btn" data-shape="person" title="Drag onto the canvas, or click to drop one in the middle (⌥P)">
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#db3069"><circle cx="8" cy="4.6" r="3" fill="#db306922"/><path d="M2.6 14a5.4 5 0 0 1 10.8 0" fill="#db306922"/></svg><span class="btn-label">Person</span>
+  </button>
+  <button class="shape-btn" data-shape="arrow" title="Drag onto the canvas, or click to drop one in the middle (⌥A)">
+    <svg class="glyph" viewBox="0 0 16 16" style="color:#3c3c3b"><path d="M1.5 8h11M9 4.5 13 8l-4 3.5" fill="none"/></svg><span class="btn-label">Arrow</span>
   </button>
 
   <div class="sep"></div>
@@ -374,6 +397,7 @@
   </button>
 
   <div class="spacer"></div>
+  <div class="group">
   <button id="btn-zoom-out" class="icon" title="Zoom out">&minus;</button>
   <button id="btn-zoom-reset" class="icon" title="Reset zoom to 100%">100%</button>
   <button id="btn-zoom-in" class="icon" title="Zoom in">+</button>
@@ -393,6 +417,7 @@
     </div>
   </div>
   <span id="status"></span>
+  </div>
 </header>
 
 <main id="stage">
@@ -408,6 +433,7 @@
       <g id="edges-layer"></g>
       <g id="nodes-layer"></g>
       <path id="temp-edge"></path>
+      <rect id="marquee" hidden></rect>
     </g>
   </svg>
   <div id="empty-hint">Drag a shape from the toolbar onto the canvas to begin</div>
@@ -453,16 +479,13 @@
 </div>
 
 <footer id="hints">
-  <span><kbd>drag</kbd> a shape from the toolbar to place it</span>
-  <span><kbd>drag</kbd> a blue handle onto another shape to connect them</span>
-  <span><kbd>click</kbd> a blue handle (or drop it on empty canvas) to add a connected shape</span>
-  <span><kbd>double-click</kbd> a shape or an arrow to label it &mdash; <kbd>shift + enter</kbd> for a line break</span>
-  <span><kbd>⌥/alt + drag</kbd> copies a shape</span>
-  <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> or the dots recolour the selection</span>
-  <span><kbd>⌘/ctrl + Z</kbd> undoes, <kbd>⇧⌘/ctrl + Z</kbd> redoes</span>
-  <span><kbd>⇧⌘/ctrl + C</kbd> copies the chart</span>
-  <span><kbd>Delete</kbd> removes the selection</span>
-  <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>drag</kbd> empty space pans, <kbd>shift</kbd> ignores the grid</span>
+  <span><kbd>drag</kbd> a shape from the toolbar &mdash; or <kbd>⌥/alt</kbd> + <kbd>A</kbd><kbd>C</kbd><kbd>S</kbd><kbd>D</kbd><kbd>P</kbd></span>
+  <span><kbd>drag</kbd> a blue handle to connect; <kbd>click</kbd> one, or <kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd><kbd>←</kbd>, to grow the next shape</span>
+  <span><kbd>double-click</kbd> to label &mdash; <kbd>shift + enter</kbd> for a line break</span>
+  <span><kbd>A</kbd><kbd>C</kbd><kbd>S</kbd><kbd>D</kbd><kbd>P</kbd> change the selected shape, <kbd>space</kbd> flips an arrow's ends</span>
+  <span><kbd>drag</kbd> empty space to select a group, <kbd>shift + click</kbd> adds, <kbd>⌥/alt + drag</kbd> copies</span>
+  <span><kbd>1</kbd>&hairsp;&ndash;&hairsp;<kbd>4</kbd> recolour, <kbd>Delete</kbd> removes, <kbd>⌘/ctrl + Z</kbd> undoes, <kbd>⇧⌘/ctrl + C</kbd> copies the chart</span>
+  <span><kbd>⌘/ctrl + scroll</kbd> zooms, <kbd>⌥/alt + drag</kbd> empty space pans, <kbd>⌘/ctrl</kbd> ignores the grid</span>
 </footer>
 
 <script>
@@ -503,7 +526,7 @@ const gridBg    = document.getElementById("grid-bg");
 /* ---------- state ---------- */
 let state     = { nodes: [], edges: [] };
 let view      = { x: 0, y: 0, k: 1 };
-let selection = null;          // {kind:'node'|'edge', id}
+let selection = { nodes: [], edges: [] };   // ids, so a whole group can be worked on at once
 let editing   = null;          // node being renamed
 let drag      = null;          // active pointer interaction
 let saveTimer = null;
@@ -512,7 +535,14 @@ let saveTimer = null;
 const COLORS = { cobalt: "#1446a0", razz: "#db3069", gold: "#f5d547", gunmetal: "#3c3c3b" };
 const COLOR_KEYS = Object.keys(COLORS);                       // also the order of keys 1-4
 const MERMAID_FILL = { cobalt: "#1446a01f", razz: "#db30691f", gold: "#f5d54759", gunmetal: "#3c3c3b1a" };
-const SHAPE_COLOR = { circle: "razz", rect: "cobalt", diamond: "gold" };
+const SHAPE_COLOR = { circle: "razz", rect: "cobalt", diamond: "gold", person: "razz", arrow: "gunmetal" };
+/* the letters that name a shape, on the keyboard and in the palette */
+const SHAPE_KEYS = { a: "arrow", c: "circle", s: "rect", d: "diamond", p: "person" };
+const PERSON_H = 50;      // height of the little figure, above its label
+const PAIR_OFFSET = 7;    // how far each line of a two-way pair sits off centre
+const END_STYLES = ["one", "both", "pair"];
+const SHAPE_LIST = Object.keys(SHAPE_COLOR);
+const ARROW_DIRS = { ArrowUp: [0, -1], ArrowRight: [1, 0], ArrowDown: [0, 1], ArrowLeft: [-1, 0] };
 const colorOf = o => (o && COLORS[o.color] ? o.color : null);
 
 const NS = "http://www.w3.org/2000/svg";
@@ -568,9 +598,23 @@ function sizeFor(shape, label) {
     return { w: d, h: d };
   }
   if (shape === "diamond") return { w: Math.max(140, b.w * 1.5 + 60), h: Math.max(92, b.h * 2 + 34) };
+  if (shape === "person") return { w: Math.max(76, b.w + 24), h: PERSON_H + b.h + 12 };
   return { w: Math.max(120, b.w + 48), h: Math.max(66, b.h + 36) };
 }
-function resize(n) { const s = sizeFor(n.shape, n.label); n.w = s.w; n.h = s.h; }
+
+/* An arrow is stored as a centre plus half a vector, so moving it is the same
+   operation as moving any other shape; only the endpoint handles touch hx/hy. */
+const arrowTail = n => ({ x: n.x - n.hx, y: n.y - n.hy });
+const arrowHead = n => ({ x: n.x + n.hx, y: n.y + n.hy });
+function sizeArrow(n) {
+  n.w = Math.max(30, Math.abs(n.hx * 2));
+  n.h = Math.max(30, Math.abs(n.hy * 2));
+}
+function resize(n) {
+  if (n.shape === "arrow") { sizeArrow(n); return; }
+  const s = sizeFor(n.shape, n.label);
+  n.w = s.w; n.h = s.h;
+}
 
 /** point where a ray leaving n's centre in direction (ux,uy) crosses its outline */
 function borderPoint(n, ux, uy, pad = 0) {
@@ -609,17 +653,24 @@ function freshId() {
 function addNode(shape, x, y, label, color) {
   const n = { id: freshId(), shape, label: label !== undefined ? label : defaultLabel(shape),
               x, y, w: 0, h: 0, color: color || SHAPE_COLOR[shape] };
+  if (shape === "arrow") { n.hx = 80; n.hy = 0; n.ends = "one"; n.labelBack = ""; }
   resize(n);
   state.nodes.push(n);
   return n;
 }
+const isArrow = n => !!n && n.shape === "arrow";
 function defaultLabel(shape) {
-  return shape === "circle" ? "Start" : shape === "diamond" ? "Decision?" : "Step";
+  return shape === "circle" ? "Start"
+       : shape === "diamond" ? "Decision?"
+       : shape === "person" ? "Someone"
+       : shape === "arrow" ? ""
+       : "Step";
 }
 function addEdge(from, to, label) {
   if (from === to) return null;
+  if (isArrow(nodeById(from)) || isArrow(nodeById(to))) return null;   // arrows are annotations
   if (state.edges.some(e => e.from === from && e.to === to)) return null;
-  const e = { id: "e" + from + "_" + to, from, to, label: label || "", color: null };
+  const e = { id: "e" + from + "_" + to, from, to, label: label || "", labelBack: "", ends: "one", color: null };
   state.edges.push(e);
   return e;
 }
@@ -630,9 +681,10 @@ function removeNode(id) {
 function removeEdge(id) { state.edges = state.edges.filter(e => e.id !== id); }
 
 function deleteSelection() {
-  if (!selection) return;
-  if (selection.kind === "node") removeNode(selection.id); else removeEdge(selection.id);
-  selection = null;
+  if (!selCount()) return;
+  selection.edges.forEach(removeEdge);
+  selection.nodes.forEach(removeNode);     // takes their connectors with them
+  selection = { nodes: [], edges: [] };
   render(); save();
 }
 
@@ -647,6 +699,20 @@ function nodeOutline(n, cls, grow) {
   if (n.shape === "diamond")
     return el("polygon", { class: cls, points: `0,${-hh} ${hw},0 0,${hh} ${-hw},0` });
   return el("rect", { class: cls, x: -hw, y: -hh, width: hw * 2, height: hh * 2, rx: 8 + g / 2, ry: 8 + g / 2 });
+}
+
+/** head and shoulders, drawn in the node's own coordinates with the label beneath */
+function personFigure(n, cls) {
+  const g = el("g", {});
+  const top = -n.h / 2;
+  const head = 13;
+  g.appendChild(el("circle", { class: cls, cx: 0, cy: top + head + 3, r: head }));
+  g.appendChild(el("path", {
+    class: cls,
+    d: `M${-22},${top + PERSON_H - 2}
+        a22,20 0 0 1 44,0`.replace(/\s+/g, " ")
+  }));
+  return g;
 }
 /** paints an element by setting the two custom properties the stylesheet reads */
 function tint(g, key) {
@@ -673,11 +739,28 @@ function textEl(cls, label, cx, cy, lineH) {
 }
 
 function renderNode(n) {
-  const g = el("g", { class: "node", "data-id": n.id, transform: `translate(${n.x},${n.y})` });
+  const g = el("g", { class: "node" + (isArrow(n) ? " arrow-node" : ""), "data-id": n.id,
+                      transform: `translate(${n.x},${n.y})` });
   tint(g, colorOf(n));
-  g.appendChild(nodeOutline(n, "node-shape"));
+
+  if (isArrow(n)) {
+    drawArrow(g, { x: -n.hx, y: -n.hy }, { x: n.hx, y: n.hy }, n);
+    g.appendChild(el("rect", { class: "sel-ring", x: -n.w / 2 - 7, y: -n.h / 2 - 7,
+                               width: n.w + 14, height: n.h + 14, rx: 10 }));
+    [[-n.hx, -n.hy, "tail"], [n.hx, n.hy, "head"]].forEach(([ex, ey, which]) =>
+      g.appendChild(el("circle", { class: "anchor endpoint", cx: ex, cy: ey, r: 5, "data-end": which })));
+    gNodes.appendChild(g);
+    return g;
+  }
+
+  g.appendChild(nodeOutline(n, n.shape === "person" ? "node-shape person-box" : "node-shape"));
+  if (n.shape === "person") {
+    g.appendChild(personFigure(n, "person-part"));
+    g.appendChild(textEl("node-label", n.label, 0, -n.h / 2 + PERSON_H + textBlock(n.label).h / 2 + 4, LINE_H));
+  } else {
+    g.appendChild(textEl("node-label", n.label, 0, 1, LINE_H));
+  }
   g.appendChild(nodeOutline(n, "sel-ring", 7));
-  g.appendChild(textEl("node-label", n.label, 0, 1, LINE_H));
   for (const [ax, ay] of ANCHORS) {
     const p = borderPoint(n, ax, ay, ANCHOR_OUT);   // outside the shape, clear of the drag area
     const a = el("circle", { class: "anchor", cx: p.x - n.x, cy: p.y - n.y, r: 5,
@@ -698,28 +781,65 @@ function edgeGeometry(e) {
   return { p1: borderPoint(a, ux, uy, 2), p2: borderPoint(b, -ux, -uy, 5) };
 }
 
-/** connector label: centred on the midpoint of the line, which it knocks out behind itself */
-function edgeLabelMetrics(e, geo) {
-  const ls = labelLines(e.label);
-  const w = Math.max(...ls.map(t => textWidth(t, EDGE_FONT)), 0);
-  const h = ls.length * EDGE_LINE_H;
-  return { ls, w, h, x: (geo.p1.x + geo.p2.x) / 2, y: (geo.p1.y + geo.p2.y) / 2 };
+/** size of a connector-sized label */
+function labelMetrics(text) {
+  const ls = labelLines(text);
+  return { w: Math.max(...ls.map(t => textWidth(t, EDGE_FONT)), 0), h: ls.length * EDGE_LINE_H };
 }
-const labelBox = m => ({ x: m.x - m.w / 2 - 7, y: m.y - m.h / 2 - 3, width: m.w + 14, height: m.h + 6 });
+const labelBox = (m, cx, cy) => ({ x: cx - m.w / 2 - 7, y: cy - m.h / 2 - 3, width: m.w + 14, height: m.h + 6 });
+/**
+ * How far a label has to sit off the centre line so the other one cannot touch it.
+ * The reach of the box along the line's normal — width when the pair runs vertically,
+ * height when it runs horizontally, and the right blend in between.
+ */
+const labelReach = (m, nx, ny) => Math.abs(nx) * (m.w / 2 + 7) + Math.abs(ny) * (m.h / 2 + 3);
+
+/**
+ * Which lines an arrow is made of. "one" and "both" are a single line (the latter
+ * with a head at each end); "pair" is two lines running opposite ways, each nudged
+ * to its own side so they — and their labels — never sit on top of each other.
+ */
+function arrowParts(p1, p2, ends) {
+  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  if (ends === "pair") return [
+    { field: "label",     side: 1,  a: { x: p1.x + nx * PAIR_OFFSET, y: p1.y + ny * PAIR_OFFSET },
+                                    b: { x: p2.x + nx * PAIR_OFFSET, y: p2.y + ny * PAIR_OFFSET }, nx, ny },
+    { field: "labelBack", side: -1, a: { x: p2.x - nx * PAIR_OFFSET, y: p2.y - ny * PAIR_OFFSET },
+                                    b: { x: p1.x - nx * PAIR_OFFSET, y: p1.y - ny * PAIR_OFFSET }, nx, ny }
+  ];
+  return [{ field: "label", side: 0, a: p1, b: p2, nx, ny, both: ends === "both" }];
+}
+
+/** draws an arrow — line(s), head(s) and label(s) — into `g` */
+function drawArrow(g, p1, p2, obj) {
+  const key = colorOf(obj) || "default";
+  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  arrowParts(p1, p2, obj.ends || "one").forEach(part => {
+    const d = `M${part.a.x},${part.a.y} L${part.b.x},${part.b.y}`;
+    g.appendChild(el("path", { class: "edge-hit", d, "data-field": part.field }));
+    const line = el("path", { class: "edge-line", d, "marker-end": `url(#arrow-${key})` });
+    if (part.both) line.setAttribute("marker-start", `url(#arrow-${key})`);
+    g.appendChild(line);
+
+    const text = obj[part.field];
+    if (!text) return;
+    const m = labelMetrics(text);
+    const off = part.side * (PAIR_OFFSET + labelReach(m, part.nx, part.ny) + 2);
+    const cx = mid.x + part.nx * off, cy = mid.y + part.ny * off;
+    g.appendChild(el("rect", Object.assign({ class: "edge-label-bg", rx: 4, "data-field": part.field },
+                                           labelBox(m, cx, cy))));
+    g.appendChild(textEl("edge-label", text, cx, cy, EDGE_LINE_H));
+  });
+}
 
 function renderEdge(e) {
   const geo = edgeGeometry(e);
   if (!geo) return;
-  const d = `M${geo.p1.x},${geo.p1.y} L${geo.p2.x},${geo.p2.y}`;
   const g = el("g", { class: "edge", "data-id": e.id });
   tint(g, colorOf(e));
-  g.appendChild(el("path", { class: "edge-hit", d }));
-  g.appendChild(el("path", { class: "edge-line", d, "marker-end": `url(#arrow-${colorOf(e) || "default"})` }));
-  if (e.label) {
-    const m = edgeLabelMetrics(e, geo);
-    g.appendChild(el("rect", Object.assign({ class: "edge-label-bg", rx: 4 }, labelBox(m))));
-    g.appendChild(textEl("edge-label", e.label, m.x, m.y, EDGE_LINE_H));
-  }
+  drawArrow(g, geo.p1, geo.p2, e);
   gEdges.appendChild(g);
 }
 
@@ -733,37 +853,64 @@ function render() {
   document.getElementById("btn-delete").disabled = !selection;
 }
 
-const selectedObject = () => !selection ? null
-  : selection.kind === "node" ? nodeById(selection.id)
-  : state.edges.find(e => e.id === selection.id);
+const edgeById = id => state.edges.find(e => e.id === id);
+const selectedNodes = () => selection.nodes.map(nodeById).filter(Boolean);
+const selectedEdges = () => selection.edges.map(edgeById).filter(Boolean);
+const selectedAll = () => selectedNodes().concat(selectedEdges());
+const selCount = () => selection.nodes.length + selection.edges.length;
+const isSelected = (kind, id) => selection[kind === "node" ? "nodes" : "edges"].indexOf(id) >= 0;
+/** the one selected thing, when there is exactly one — label editing and the like */
+const onlySelected = () => selCount() === 1 ? selectedAll()[0] : null;
+const selectedKind = () => selection.nodes.length ? "node" : "edge";
 
 function applySelection() {
   gNodes.querySelectorAll(".node.selected").forEach(n => n.classList.remove("selected"));
   gEdges.querySelectorAll(".edge.selected").forEach(n => n.classList.remove("selected"));
-  if (selection) {
-    const layer = selection.kind === "node" ? gNodes : gEdges;
-    const g = layer.querySelector(`[data-id="${CSS.escape(selection.id)}"]`);
+  selection.nodes.forEach(id => {
+    const g = gNodes.querySelector(`[data-id="${CSS.escape(id)}"]`);
     if (g) g.classList.add("selected");
-  }
-  const obj = selectedObject();
-  document.querySelectorAll(".swatch").forEach(b => {
-    b.disabled = !obj;
-    b.setAttribute("aria-pressed", obj && obj.color === b.dataset.color ? "true" : "false");
   });
-  document.getElementById("btn-delete").disabled = !selection;
+  selection.edges.forEach(id => {
+    const g = gEdges.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    if (g) g.classList.add("selected");
+  });
+  const chosen = selectedAll();
+  document.querySelectorAll(".swatch").forEach(b => {
+    b.disabled = !chosen.length;
+    const all = chosen.length > 0 && chosen.every(o => o.color === b.dataset.color);
+    b.setAttribute("aria-pressed", all ? "true" : "false");
+  });
+  document.getElementById("btn-delete").disabled = !chosen.length;
 }
 
-/** recolour the selection; clicking its current colour clears it back to the default */
+/** recolour everything selected; picking the colour they already share clears it */
 function setColor(key) {
-  const obj = selectedObject();
-  if (!obj || !COLORS[key]) return;
-  const back = selection.kind === "node" ? SHAPE_COLOR[obj.shape] : null;
-  obj.color = obj.color === key ? back : key;
+  const chosen = selectedAll();
+  if (!chosen.length || !COLORS[key]) return;
+  const undo = chosen.every(o => o.color === key);
+  chosen.forEach(o => {
+    o.color = undo ? (o.shape ? SHAPE_COLOR[o.shape] : null) : key;
+  });
   render(); save();
 }
 document.querySelectorAll(".swatch").forEach(b =>
   b.addEventListener("click", () => setColor(b.dataset.color)));
-function select(kind, id) { selection = kind ? { kind, id } : null; applySelection(); }
+function select(kind, id, additive) {
+  if (!kind) { selection = { nodes: [], edges: [] }; applySelection(); return; }
+  const key = kind === "node" ? "nodes" : "edges";
+  if (additive) {
+    const at = selection[key].indexOf(id);
+    if (at >= 0) selection[key].splice(at, 1); else selection[key].push(id);
+  } else {
+    selection = { nodes: [], edges: [] };
+    selection[key].push(id);
+  }
+  applySelection();
+}
+function selectMany(nodeIds, edgeIds) {
+  selection = { nodes: nodeIds.slice(), edges: edgeIds.slice() };
+  applySelection();
+}
 
 /* incremental updates while dragging */
 function moveNodeEl(n) {
@@ -771,24 +918,33 @@ function moveNodeEl(n) {
   if (g) g.setAttribute("transform", `translate(${n.x},${n.y})`);
   redrawEdgesFor(n.id);
 }
+/** an arrow can be one line or two, so redraw the whole group rather than patching paths */
 function redrawEdgesFor(id) {
   state.edges.forEach(e => {
     if (e.from !== id && e.to !== id) return;
     const g = gEdges.querySelector(`[data-id="${CSS.escape(e.id)}"]`);
     const geo = edgeGeometry(e);
     if (!g || !geo) return;
-    const d = `M${geo.p1.x},${geo.p1.y} L${geo.p2.x},${geo.p2.y}`;
-    g.querySelectorAll("path").forEach(p => p.setAttribute("d", d));
-    const t = g.querySelector(".edge-label");
-    if (t) {
-      const m = edgeLabelMetrics(e, geo);
-      t.setAttribute("x", m.x); t.setAttribute("y", m.y);
-      const y0 = m.y - ((m.ls.length - 1) * EDGE_LINE_H) / 2;
-      t.querySelectorAll("tspan").forEach((ts, i) => { ts.setAttribute("x", m.x); ts.setAttribute("y", y0 + i * EDGE_LINE_H); });
-      const bg = g.querySelector(".edge-label-bg");
-      if (bg) { const b = labelBox(m); for (const k in b) bg.setAttribute(k, b[k]); }
-    }
+    const selected = g.classList.contains("selected");
+    g.textContent = "";
+    drawArrow(g, geo.p1, geo.p2, e);
+    if (selected) g.classList.add("selected");
   });
+}
+
+/** redraws one free-standing arrow in place (its endpoints moved) */
+function redrawArrowEl(n) {
+  const g = gNodes.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
+  if (!g) return;
+  const selected = g.classList.contains("selected");
+  g.textContent = "";
+  g.setAttribute("transform", `translate(${n.x},${n.y})`);
+  drawArrow(g, { x: -n.hx, y: -n.hy }, { x: n.hx, y: n.hy }, n);
+  g.appendChild(el("rect", { class: "sel-ring", x: -n.w / 2 - 7, y: -n.h / 2 - 7,
+                             width: n.w + 14, height: n.h + 14, rx: 10 }));
+  [[-n.hx, -n.hy, "tail"], [n.hx, n.hy, "head"]].forEach(([ex, ey, which]) =>
+    g.appendChild(el("circle", { class: "anchor endpoint", cx: ex, cy: ey, r: 5, "data-end": which })));
+  if (selected) g.classList.add("selected");
 }
 
 /* ---------- viewport ---------- */
@@ -830,7 +986,25 @@ function fit() {
   applyView();
 }
 
-/* ---------- label editing (nodes and connectors) ---------- */
+/* ---------- label editing (shapes, connectors and free arrows) ---------- */
+
+/** where a given label sits in the world — the two labels of a pair are on opposite sides */
+function labelAnchor(obj, kind, field) {
+  let p1, p2;
+  if (kind === "edge") {
+    const geo = edgeGeometry(obj);
+    if (!geo) return null;
+    p1 = geo.p1; p2 = geo.p2;
+  } else {
+    p1 = arrowTail(obj); p2 = arrowHead(obj);
+  }
+  const parts = arrowParts(p1, p2, obj.ends || "one");
+  const part = parts.find(x => x.field === field) || parts[0];
+  const m = labelMetrics(obj[part.field] || " ");
+  const off = part.side * (PAIR_OFFSET + labelReach(m, part.nx, part.ny) + 2);
+  return { x: (p1.x + p2.x) / 2 + part.nx * off, y: (p1.y + p2.y) / 2 + part.ny * off };
+}
+
 function positionEditor() {
   if (!editing) return;
   const k = view.k;
@@ -838,15 +1012,15 @@ function positionEditor() {
   const lh = Math.round(fs * 1.35);
   const rows = editor.value.split("\n").length;
   let cx, cy, boxW;
-  if (editing.kind === "node") {
+  if (editing.kind === "node" && !isArrow(editing.obj)) {
     const n = editing.obj;
-    cx = n.x; cy = n.y;
+    cx = n.x;
+    cy = n.shape === "person" ? n.y - n.h / 2 + PERSON_H + textBlock(n.label).h / 2 + 4 : n.y;
     boxW = Math.max(96, n.w * k - 10);
   } else {
-    const geo = edgeGeometry(editing.obj);
-    if (!geo) return;
-    cx = (geo.p1.x + geo.p2.x) / 2;
-    cy = (geo.p1.y + geo.p2.y) / 2;
+    const at = labelAnchor(editing.obj, editing.kind, editing.field);
+    if (!at) return;
+    cx = at.x; cy = at.y;
     boxW = Math.max(120, 150 * k);
   }
   const boxH = rows * lh + 12;                    // border-box: padding + border included
@@ -857,10 +1031,11 @@ function positionEditor() {
   editor.style.left = (view.x + cx * k - boxW / 2) + "px";
   editor.style.top  = (view.y + cy * k - boxH / 2) + "px";
 }
-function startEditing(kind, obj) {
-  editing = { kind, obj };
-  editor.value = obj.label || "";
-  editor.placeholder = kind === "edge" ? "label" : "";
+function startEditing(kind, obj, field) {
+  const slot = field === "labelBack" ? "labelBack" : "label";
+  editing = { kind, obj, field: slot };
+  editor.value = obj[slot] || "";
+  editor.placeholder = kind === "edge" || isArrow(obj) ? "label" : "";
   editor.style.display = "block";
   positionEditor();
   editor.focus();
@@ -870,16 +1045,16 @@ let committing = false;
 function commitEditing(keep) {
   if (!editing || committing) return;
   committing = true;
-  const { kind, obj } = editing;
+  const { kind, obj, field } = editing;
   editing = null;
   editor.style.display = "none";
   if (document.activeElement === editor) editor.blur();
   committing = false;
   if (keep) {
     const value = editor.value.replace(/[ \t]+$/gm, "").replace(/^\n+|\n+$/g, "");
-    if (value === obj.label) return;
-    obj.label = value;
-    if (kind === "node") resize(obj);
+    if (value === (obj[field] || "")) return;
+    obj[field] = value;
+    if (kind === "node" && !isArrow(obj)) resize(obj);
     render(); save();
   }
 }
@@ -899,7 +1074,10 @@ let lastTap = null;
 
 function abortDrag() {
   if (!drag) return;
-  if (drag.type === "node") {
+  hideMarquee();
+  if (drag.type === "endpoint") {
+    if (drag.moved) save();
+  } else if (drag.type === "node") {
     gNodes.querySelectorAll(".dragging").forEach(x => x.classList.remove("dragging"));
     if (drag.moved || drag.cloned) save();
   } else if (drag.type === "connect") {
@@ -935,24 +1113,39 @@ function updatePinch() {
 }
 
 svg.addEventListener("pointerdown", ev => {
-  if (ev.button !== 0) return;
+  if (ev.button !== 0 && ev.button !== 1) return;      // left, or middle to pan
   livePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (livePointers.size === 2) { commitEditing(true); startPinch(); ev.preventDefault(); return; }
   if (livePointers.size > 2) return;
   commitEditing(true);
-  let   anchor = ev.target.closest(".anchor");
+  let   endpointHit = ev.target.closest(".endpoint");
+  let   anchor = endpointHit ? null : ev.target.closest(".anchor");
   let   nodeG  = ev.target.closest(".node");
   const edgeG  = ev.target.closest(".edge");
+  const field  = (ev.target.closest("[data-field]") || {}).dataset
+               ? (ev.target.closest("[data-field]") || { dataset: {} }).dataset.field : null;
 
   // Touch hit-testing is fuzzy: the browser happily snaps a fingertip onto a small
   // handle several tens of pixels away, which turns "drag the shape" into "draw an
   // arrow". Only honour a handle the finger actually landed on.
-  if (anchor && ev.pointerType !== "mouse") {
-    const r = anchor.getBoundingClientRect();
+  const nearEnough = handle => {
+    const r = handle.getBoundingClientRect();
     const reach = Math.max(r.width, r.height) / 2 + TOUCH_SLOP;
-    if (Math.hypot(ev.clientX - (r.x + r.width / 2), ev.clientY - (r.y + r.height / 2)) > reach) anchor = null;
+    return Math.hypot(ev.clientX - (r.x + r.width / 2), ev.clientY - (r.y + r.height / 2)) <= reach;
+  };
+  if (ev.pointerType !== "mouse") {
+    if (anchor && !nearEnough(anchor)) anchor = null;
+    if (endpointHit && !nearEnough(endpointHit)) endpointHit = null;
   }
 
+  if (endpointHit && nodeG) {
+    const n = nodeById(nodeG.dataset.id);
+    select("node", n.id);
+    drag = { type: "endpoint", id: n.id, which: endpointHit.dataset.end, moved: false };
+    svg.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+    return;
+  }
   if (anchor && nodeG) {
     const n = nodeById(nodeG.dataset.id);
     const [ax, ay] = anchor.dataset.anchor.split(",").map(Number);
@@ -966,32 +1159,86 @@ svg.addEventListener("pointerdown", ev => {
   }
   if (nodeG) {
     let n = nodeById(nodeG.dataset.id);
+    const inGroup = isSelected("node", n.id);
+    let ids = inGroup && selection.nodes.length > 1 ? selection.nodes.slice() : [n.id];
     let cloned = false;
+
     if (ev.altKey) {                       // ⌥/alt + drag pulls a copy off the original
-      n = addNode(n.shape, n.x, n.y, n.label, n.color);
+      const copies = ids.map(id => {
+        const src = nodeById(id);
+        const copy = addNode(src.shape, src.x, src.y, src.label, src.color);
+        if (isArrow(src)) { copy.hx = src.hx; copy.hy = src.hy; copy.ends = src.ends; copy.labelBack = src.labelBack; resize(copy); }
+        return copy;
+      });
+      n = copies[ids.indexOf(n.id)] || copies[0];
+      ids = copies.map(c => c.id);
       cloned = true;
       render();
+      selectMany(ids, []);
       nodeG = gNodes.querySelector(`[data-id="${CSS.escape(n.id)}"]`);
+    } else if (ev.shiftKey) {
+      select("node", n.id, true);
+      ids = selection.nodes.slice();
+    } else if (!inGroup) {
+      select("node", n.id);
+      ids = [n.id];
     }
-    select("node", n.id);
+
     const w = toWorld(ev.clientX, ev.clientY);
-    drag = { type: "node", id: n.id, dx: w.x - n.x, dy: w.y - n.y, moved: false, cloned };
-    nodeG.classList.add("dragging");
+    drag = { type: "node", id: n.id, ids, dx: w.x - n.x, dy: w.y - n.y,
+             moved: false, cloned, field, shift: ev.shiftKey, wasGroup: ids.length > 1 };
+    if (nodeG) nodeG.classList.add("dragging");
     svg.setPointerCapture(ev.pointerId);
     ev.preventDefault();
     return;
   }
   if (edgeG) {
-    select("edge", edgeG.dataset.id);
-    drag = { type: "edge", id: edgeG.dataset.id };   // so a second tap can open its label
+    const id = edgeG.dataset.id;
+    if (ev.shiftKey) select("edge", id, true);
+    else if (!isSelected("edge", id)) select("edge", id);
+    drag = { type: "edge", id, field, shift: ev.shiftKey };   // so a second tap can open its label
     return;
   }
 
-  select(null);
-  drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y };
-  svg.classList.add("panning");
+  // empty canvas: a finger, the middle button or ⌥ pans; a mouse drag draws a selection box
+  if (ev.pointerType !== "mouse" || ev.button === 1 || ev.altKey) {
+    select(null);
+    drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y };
+    svg.classList.add("panning");
+    svg.setPointerCapture(ev.pointerId);
+    return;
+  }
+  if (!ev.shiftKey) select(null);
+  const start = toWorld(ev.clientX, ev.clientY);
+  drag = { type: "marquee", x0: start.x, y0: start.y, moved: false,
+           base: { nodes: selection.nodes.slice(), edges: selection.edges.slice() } };
+  drawMarquee(start.x, start.y, start.x, start.y);
   svg.setPointerCapture(ev.pointerId);
+  ev.preventDefault();
 });
+
+/* ---------- the rubber band ---------- */
+const marquee = document.getElementById("marquee");
+function drawMarquee(x0, y0, x1, y1) {
+  marquee.setAttribute("x", Math.min(x0, x1));
+  marquee.setAttribute("y", Math.min(y0, y1));
+  marquee.setAttribute("width", Math.abs(x1 - x0));
+  marquee.setAttribute("height", Math.abs(y1 - y0));
+  marquee.hidden = false;
+}
+function hideMarquee() { marquee.hidden = true; }
+
+/** everything whose box the band touches, plus the connectors wholly inside it */
+function marqueeHits(x0, y0, x1, y1) {
+  const left = Math.min(x0, x1), right = Math.max(x0, x1);
+  const top = Math.min(y0, y1), bottom = Math.max(y0, y1);
+  const nodes = state.nodes.filter(n =>
+    n.x + n.w / 2 >= left && n.x - n.w / 2 <= right &&
+    n.y + n.h / 2 >= top && n.y - n.h / 2 <= bottom).map(n => n.id);
+  const edges = state.edges.filter(e => nodes.indexOf(e.from) >= 0 && nodes.indexOf(e.to) >= 0).map(e => e.id);
+  return { nodes, edges };
+}
+const union = (a, b) => a.concat(b.filter(x => a.indexOf(x) < 0));
 
 svg.addEventListener("pointermove", ev => {
   if (livePointers.has(ev.pointerId)) livePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1006,10 +1253,36 @@ svg.addEventListener("pointermove", ev => {
     if (!n) return;
     const w = toWorld(ev.clientX, ev.clientY);
     let nx = w.x - drag.dx, ny = w.y - drag.dy;
-    if (!ev.shiftKey) { nx = Math.round(nx / GRID) * GRID; ny = Math.round(ny / GRID) * GRID; }
-    if (nx !== n.x || ny !== n.y) drag.moved = true;
-    n.x = nx; n.y = ny;
-    moveNodeEl(n);
+    if (!(ev.metaKey || ev.ctrlKey)) { nx = Math.round(nx / GRID) * GRID; ny = Math.round(ny / GRID) * GRID; }
+    const ddx = nx - n.x, ddy = ny - n.y;
+    if (!ddx && !ddy) return;
+    drag.moved = true;
+    drag.ids.forEach(id => {                       // the rest of the group comes along
+      const m = nodeById(id);
+      if (!m) return;
+      m.x += ddx; m.y += ddy;
+      moveNodeEl(m);
+    });
+  } else if (drag.type === "marquee") {
+    const w = toWorld(ev.clientX, ev.clientY);
+    drag.moved = true;
+    drawMarquee(drag.x0, drag.y0, w.x, w.y);
+    const hit = marqueeHits(drag.x0, drag.y0, w.x, w.y);
+    selectMany(union(drag.base.nodes, hit.nodes), union(drag.base.edges, hit.edges));
+  } else if (drag.type === "endpoint") {
+    const n = nodeById(drag.id);
+    if (!n) return;
+    const w = toWorld(ev.clientX, ev.clientY);
+    let px = w.x, py = w.y;
+    if (!(ev.metaKey || ev.ctrlKey)) { px = Math.round(px / GRID) * GRID; py = Math.round(py / GRID) * GRID; }
+    const fixed = drag.which === "head" ? arrowTail(n) : arrowHead(n);
+    n.x = (px + fixed.x) / 2;
+    n.y = (py + fixed.y) / 2;
+    n.hx = (drag.which === "head" ? px - n.x : n.x - px);
+    n.hy = (drag.which === "head" ? py - n.y : n.y - py);
+    sizeArrow(n);
+    redrawArrowEl(n);
+    drag.moved = true;
   } else if (drag.type === "connect") {
     const w = toWorld(ev.clientX, ev.clientY);
     tempEdge.setAttribute("d", `M${drag.origin.x},${drag.origin.y} L${w.x},${w.y}`);
@@ -1044,18 +1317,21 @@ function placeNear(src, dir, size) {
 }
 
 /** grow a new node off `from`, wire it up and drop straight into its label editor */
+/** grows a new shape of the same kind off `from`, wires it up and opens its label */
 function growFrom(fromId, at, dir) {
   const src = nodeById(fromId);
   if (!src) return;
-  const label = defaultLabel("rect");
-  const size = sizeFor("rect", label);
+  const shape = src.shape;
+  const label = defaultLabel(shape);
+  const size = shape === "arrow" ? { w: Math.abs(src.hx * 2) || 160, h: 40 } : sizeFor(shape, label);
   const p = at || placeNear(src, dir || [0, 1], size);
-  const n = addNode("rect", Math.round(p.x / GRID) * GRID, Math.round(p.y / GRID) * GRID, label);
-  addEdge(fromId, n.id);
+  const n = addNode(shape, Math.round(p.x / GRID) * GRID, Math.round(p.y / GRID) * GRID, label, src.color);
+  if (shape === "arrow") { n.hx = src.hx; n.hy = src.hy; n.ends = src.ends; resize(n); }
+  addEdge(fromId, n.id);                       // a no-op between arrows
   render();
   select("node", n.id);
   save();
-  startEditing("node", n);
+  if (shape !== "arrow") startEditing("node", n);
 }
 
 /**
@@ -1074,15 +1350,21 @@ function tappedAgain(ev) {
 
 function endDrag(ev) {
   if (!drag) return;
-  if (drag.type === "edge") {
+  if (drag.type === "endpoint") {
+    if (drag.moved) save();
+  } else if (drag.type === "edge") {
     const e = state.edges.find(x => x.id === drag.id);
-    if (e && tappedAgain(ev)) startEditing("edge", e);
+    if (e && tappedAgain(ev)) startEditing("edge", e, drag.field);
+  } else if (drag.type === "marquee") {
+    hideMarquee();
   } else if (drag.type === "node") {
     gNodes.querySelectorAll(".dragging").forEach(x => x.classList.remove("dragging"));
     if (drag.moved || drag.cloned) { lastTap = null; save(); }
     else {
+      // a plain click inside a group narrows it down to the one you clicked
+      if (drag.wasGroup && !drag.shift) select("node", drag.id);
       const n = nodeById(drag.id);
-      if (n && tappedAgain(ev)) startEditing("node", n);
+      if (n && tappedAgain(ev)) startEditing("node", n, drag.field);
     }
   } else if (drag.type === "connect") {
     gNodes.querySelectorAll(".droptarget").forEach(x => x.classList.remove("droptarget"));
@@ -1133,16 +1415,18 @@ const nodeGroupAt = ev => groupAt(ev, ".node");
 const edgeGroupAt = ev => groupAt(ev, ".edge");
 
 svg.addEventListener("dblclick", ev => {
+  const holder = ev.target.closest ? ev.target.closest("[data-field]") : null;
+  const field = holder ? holder.dataset.field : null;
   const g = nodeGroupAt(ev);
   if (g) {
     const n = nodeById(g.dataset.id);
-    if (n) { select("node", n.id); startEditing("node", n); }
+    if (n) { select("node", n.id); startEditing("node", n, field); }
     return;
   }
   const eg = edgeGroupAt(ev);
   if (eg) {
     const e = state.edges.find(x => x.id === eg.dataset.id);
-    if (e) { select("edge", e.id); startEditing("edge", e); }
+    if (e) { select("edge", e.id); startEditing("edge", e, field); }
   }
 });
 
@@ -1193,6 +1477,8 @@ document.querySelectorAll(".shape-btn").forEach(btn => {
 function ghostSvg(shape) {
   const body = shape === "circle" ? '<circle cx="60" cy="34" r="30"/>'
              : shape === "diamond" ? '<polygon points="60,4 128,34 60,64 -8,34"/>'
+             : shape === "person" ? '<circle cx="60" cy="16" r="13"/><path d="M38 60a22 20 0 0 1 44 0"/>'
+             : shape === "arrow" ? '<path d="M6 34h100M92 20l16 14-16 14" fill="none"/>'
              : '<rect x="8" y="8" width="104" height="52" rx="8"/>';
   return `<svg width="120" height="68" viewBox="0 0 120 68" style="overflow:visible">
             <g fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="2">${body}</g>
@@ -1213,20 +1499,89 @@ window.addEventListener("keydown", ev => {
   if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); redo(); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === "c") { ev.preventDefault(); runCopy(copyFormat); return; }
   if (mod) return;                           // leave every other shortcut to the browser
-  if (/^[1-9]$/.test(ev.key) && COLOR_KEYS[+ev.key - 1] && selection) {
+
+  // ⌥ changes what the letters mean, and on a Mac it also changes ev.key — so read ev.code
+  const code = /^Key([A-Z])$/.exec(ev.code || "");
+  const letter = code ? code[1].toLowerCase() : null;
+  if (letter && SHAPE_KEYS[letter]) {
+    ev.preventDefault();
+    const shape = SHAPE_KEYS[letter];
+    if (ev.altKey) {
+      const p = viewportCentreWorld();
+      const n = addNode(shape, Math.round(p.x / GRID) * GRID, Math.round(p.y / GRID) * GRID);
+      render(); select("node", n.id); save();
+      if (shape !== "arrow") startEditing("node", n, "label");
+    } else {
+      convertSelection(shape);
+    }
+    return;
+  }
+  if (ev.altKey) return;                     // every other ⌥ shortcut belongs to the browser
+
+  if (ARROW_DIRS[ev.key]) {
+    const one = onlySelected();
+    if (one && selection.nodes.length === 1) {
+      ev.preventDefault();
+      growFrom(one.id, null, ARROW_DIRS[ev.key]);   // exactly as if you had clicked that handle
+    }
+    return;
+  }
+  if (ev.key === " " || ev.key === "Spacebar") {
+    if (cycleEnds()) ev.preventDefault();
+    return;
+  }
+
+  if (/^[1-9]$/.test(ev.key) && COLOR_KEYS[+ev.key - 1] && selCount()) {
     ev.preventDefault(); setColor(COLOR_KEYS[+ev.key - 1]);
   }
   else if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); deleteSelection(); }
   else if (ev.key === "Escape") select(null);
-  else if (ev.key === "Enter" && selection) {
+  else if (ev.key === "Enter" && onlySelected()) {
     ev.preventDefault();
-    if (selection.kind === "node") startEditing("node", nodeById(selection.id));
-    else {
-      const e = state.edges.find(x => x.id === selection.id);
-      if (e) startEditing("edge", e);
-    }
+    const obj = onlySelected();
+    startEditing(selection.nodes.length ? "node" : "edge", obj, "label");
   }
 });
+
+/* ============================================================
+   turning one shape into another, and cycling an arrow's ends
+   ============================================================ */
+
+/** changes a shape in place, keeping its label, position and any colour you chose */
+function convertShape(n, shape) {
+  if (!n || n.shape === shape || !SHAPE_COLOR[shape]) return false;
+  const wasDefault = n.color === SHAPE_COLOR[n.shape];
+  if (shape === "arrow") {
+    n.hx = Math.max(60, n.w / 2);
+    n.hy = 0;
+    n.ends = n.ends || "one";
+    n.labelBack = n.labelBack || "";
+    state.edges = state.edges.filter(e => e.from !== n.id && e.to !== n.id);   // arrows carry no connectors
+  }
+  n.shape = shape;
+  if (wasDefault) n.color = SHAPE_COLOR[shape];
+  resize(n);
+  return true;
+}
+
+function convertSelection(shape) {
+  const nodes = selectedNodes();
+  if (!nodes.length) return false;
+  const changed = nodes.map(n => convertShape(n, shape)).some(Boolean);
+  if (changed) { render(); save(); }
+  return changed;
+}
+
+/** one head, then a head at each end, then two lines each with their own label */
+function cycleEnds() {
+  const targets = selectedAll().filter(o => isArrow(o) || o.from);
+  if (!targets.length) return false;
+  const next = END_STYLES[(END_STYLES.indexOf(targets[0].ends || "one") + 1) % END_STYLES.length];
+  targets.forEach(o => { o.ends = next; if (next === "pair" && o.labelBack == null) o.labelBack = ""; });
+  render(); save();
+  statusEl.textContent = next === "one" ? "One way" : next === "both" ? "Both ways" : "Two lines, two labels";
+  return true;
+}
 
 /* ---------- toolbar ---------- */
 document.getElementById("btn-delete").addEventListener("click", deleteSelection);
@@ -1244,7 +1599,7 @@ document.getElementById("btn-chart-clear").addEventListener("click", () => {
   closeChartMenu();
   if (!state.nodes.length && !state.edges.length) return;
   state = { nodes: [], edges: [] };
-  selection = null;
+  selection = { nodes: [], edges: [] };
   render(); save();
 });
 
@@ -1258,31 +1613,56 @@ const unquote = s => {
   return t.replace(/<br\s*\/?>/gi, "\n").replace(/#quot;/g, '"').replace(/^\s+|\s+$/g, "");
 };
 
+/** the link operator for one direction, label included */
+function linkOp(ends, label) {
+  const op = ends === "both" ? "<-->" : "-->";
+  return label ? `${op}|${quote(label)}|` : op;
+}
+
 function toMermaid() {
   const out = ["flowchart TD"];
-  state.nodes.forEach(n => {
+  const shapes = state.nodes.filter(n => !isArrow(n));   // free arrows are annotations, not nodes
+  shapes.forEach(n => {
     const l = quote(n.label);
     out.push("    " + (n.shape === "circle"  ? `${n.id}((${l}))`
                      : n.shape === "diamond" ? `${n.id}{${l}}`
-                     : `${n.id}[${l}]`));
+                     : `${n.id}[${l}]`));                // a person rides as a box plus %% shape
   });
+
+  // links in the order mermaid will number them, so linkStyle indices line up
+  const links = [];
   state.edges.forEach(e => {
-    out.push("    " + (e.label ? `${e.from} -->|${quote(e.label)}| ${e.to}` : `${e.from} --> ${e.to}`));
+    const k = colorOf(e);
+    if (e.ends === "pair") {
+      links.push({ text: `${e.from} ${linkOp("one", e.label)} ${e.to}`, color: k });
+      links.push({ text: `${e.to} ${linkOp("one", e.labelBack)} ${e.from}`, color: k });
+    } else {
+      links.push({ text: `${e.from} ${linkOp(e.ends, e.label)} ${e.to}`, color: k });
+    }
   });
+  links.forEach(l => out.push("    " + l.text));
+
   // colours, as real mermaid: a classDef per palette colour in use, then class / linkStyle lines
   COLOR_KEYS.forEach(k => {
-    const ids = state.nodes.filter(n => colorOf(n) === k).map(n => n.id);
+    const ids = shapes.filter(n => colorOf(n) === k).map(n => n.id);
     if (!ids.length) return;
     out.push(`    classDef ${k} stroke:${COLORS[k]},fill:${MERMAID_FILL[k]},stroke-width:2px`);
     out.push(`    class ${ids.join(",")} ${k}`);
   });
-  state.edges.forEach((e, i) => {
-    const k = colorOf(e);
-    if (k) out.push(`    linkStyle ${i} stroke:${COLORS[k]},color:${COLORS[k]}`);
+  links.forEach((l, i) => {
+    if (l.color) out.push(`    linkStyle ${i} stroke:${COLORS[l.color]},color:${COLORS[l.color]}`);
   });
+
   out.push("");
   out.push("%% flowyo:1 layout metadata — ignored by mermaid, keeps hand-placed positions");
-  state.nodes.forEach(n => out.push(`%% pos ${n.id} ${Math.round(n.x)} ${Math.round(n.y)}`));
+  shapes.forEach(n => out.push(`%% pos ${n.id} ${Math.round(n.x)} ${Math.round(n.y)}`));
+  shapes.filter(n => n.shape === "person")
+        .forEach(n => out.push(`%% shape ${n.id} person`));
+  state.nodes.filter(isArrow).forEach(n => {
+    const a = arrowTail(n), b = arrowHead(n);
+    out.push(`%% arrow ${n.id} ${Math.round(a.x)} ${Math.round(a.y)} ${Math.round(b.x)} ${Math.round(b.y)} `
+           + `${n.ends || "one"} ${colorOf(n) || "-"} ${quote(n.label)} ${quote(n.labelBack)}`);
+  });
   return out.join("\n");
 }
 
@@ -1290,9 +1670,10 @@ const SHAPE_TOKEN = "\\(\\(.*?\\)\\)|\\[.*?\\]|\\{.*?\\}";
 const NODE_RE = new RegExp("^([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")\\s*$");
 const EDGE_RE = new RegExp(
   "^([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")?\\s*" +
-  "(?:-{2,}>|-{3,}|={2,}>|-\\.-+>)\\s*" +
+  "(<?-{2,}>|<?={2,}>|-{3,}|-\\.-+>)\\s*" +
   "(?:\\|(.*?)\\|)?\\s*" +
   "([A-Za-z0-9_.-]+)\\s*(" + SHAPE_TOKEN + ")?\\s*$");
+const ARROW_RE = /^%%\s*arrow\s+(\S+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(\w+)\s+(\S+)\s+"([^"]*)"\s+"([^"]*)"\s*$/;
 
 const hexToKey = hex => {
   const h = String(hex || "").toLowerCase().slice(0, 7);
@@ -1304,6 +1685,7 @@ function fromMermaid(text) {
   const classKey = Object.create(null);      // mermaid class name -> palette key
   const nodeClass = Object.create(null);     // node id -> mermaid class name
   const linkColor = Object.create(null);     // link index -> palette key
+  const shapeOf = Object.create(null);       // node id -> a shape mermaid cannot spell
 
   const reg = (id, token) => {
     if (!seen[id]) { seen[id] = { id, shape: "rect", label: id, x: 0, y: 0, w: 0, h: 0 }; nodes.push(seen[id]); }
@@ -1321,6 +1703,20 @@ function fromMermaid(text) {
     if (!line) return;
     let m = line.match(/^%%\s*pos\s+(\S+)\s+(-?[\d.]+)\s+(-?[\d.]+)/);
     if (m) { pos[m[1]] = { x: parseFloat(m[2]), y: parseFloat(m[3]) }; return; }
+    m = line.match(/^%%\s*shape\s+(\S+)\s+(\w+)/);
+    if (m) { shapeOf[m[1]] = m[2]; return; }
+    m = line.match(ARROW_RE);
+    if (m) {
+      const x1 = parseFloat(m[2]), y1 = parseFloat(m[3]), x2 = parseFloat(m[4]), y2 = parseFloat(m[5]);
+      const a = { id: m[1], shape: "arrow", label: unquote('"' + m[8] + '"'), labelBack: unquote('"' + m[9] + '"'),
+                  ends: END_STYLES.indexOf(m[6]) >= 0 ? m[6] : "one",
+                  color: COLORS[m[7]] ? m[7] : SHAPE_COLOR.arrow,
+                  x: (x1 + x2) / 2, y: (y1 + y2) / 2, hx: (x2 - x1) / 2, hy: (y2 - y1) / 2, w: 0, h: 0 };
+      sizeArrow(a);
+      nodes.push(a);
+      seen[a.id] = a;
+      return;
+    }
     if (line.startsWith("%%")) return;
     if (/^(flowchart|graph)\b/i.test(line)) return;
 
@@ -1346,9 +1742,12 @@ function fromMermaid(text) {
 
     m = line.match(EDGE_RE);
     if (m) {
-      reg(m[1], m[2]); reg(m[4], m[5]);
-      if (m[1] !== m[4] && !edges.some(e => e.from === m[1] && e.to === m[4]))
-        edges.push({ id: "e" + m[1] + "_" + m[4], from: m[1], to: m[4], label: m[3] ? unquote(m[3]) : "" });
+      const [, from, fromShape, op, label, to, toShape] = m;
+      reg(from, fromShape); reg(to, toShape);
+      if (from !== to && !edges.some(e => e.from === from && e.to === to))
+        edges.push({ id: "e" + from + "_" + to, from, to,
+                     label: label ? unquote(label) : "", labelBack: "",
+                     ends: /^</.test(op) ? "both" : "one" });
       return;
     }
     m = line.match(NODE_RE);
@@ -1357,13 +1756,35 @@ function fromMermaid(text) {
   });
 
   nodes.forEach(n => {
+    if (isArrow(n)) return;                       // arrows carry their own colour and size
+    const named_shape = shapeOf[n.id];
+    if (named_shape && named_shape !== "arrow" && SHAPE_LIST.indexOf(named_shape) >= 0) n.shape = named_shape;
     const named = nodeClass[n.id];
     n.color = (named && classKey[named]) || (COLORS[named] ? named : null) || SHAPE_COLOR[n.shape];
     resize(n);
   });
   edges.forEach((e, i) => { e.color = linkColor[i] || null; });
+  mergeOpposites(edges);
   layout(nodes, edges, pos);
   return { nodes, edges };
+}
+
+/**
+ * Two links running between the same pair in opposite directions are one two-way
+ * connector as far as FlowYo is concerned — each keeps its own label.
+ */
+function mergeOpposites(edges) {
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i];
+    if (e.ends !== "one") continue;
+    const j = edges.findIndex(x => x !== e && x.ends === "one" && x.from === e.to && x.to === e.from);
+    if (j < 0) continue;
+    e.ends = "pair";
+    e.labelBack = edges[j].label || "";
+    if (!e.color) e.color = edges[j].color || null;
+    edges.splice(j, 1);
+    if (j < i) i--;
+  }
 }
 
 /** honour stored positions; auto-place anything that has none (e.g. pasted mermaid) */
@@ -1371,6 +1792,7 @@ function layout(nodes, edges, pos) {
   const placed = [];
   const loose = [];
   nodes.forEach(n => {
+    if (n.shape === "arrow") { placed.push(n); return; }
     if (pos[n.id]) { n.x = pos[n.id].x; n.y = pos[n.id].y; placed.push(n); }
     else loose.push(n);
   });
@@ -1436,10 +1858,11 @@ function restoreHistory(i) {
   hIndex = i;
   restoring = true;
   state = JSON.parse(history[i]);
-  // the selection may point at something that no longer exists
-  if (selection && !(selection.kind === "node"
-        ? nodeById(selection.id)
-        : state.edges.some(e => e.id === selection.id))) selection = null;
+  // the selection may point at things that no longer exist
+  selection = {
+    nodes: selection.nodes.filter(id => nodeById(id)),
+    edges: selection.edges.filter(id => edgeById(id))
+  };
   render();
   writeNow();
   restoring = false;
@@ -1512,7 +1935,7 @@ function loadLibrary() {
 function openCurrent(frame) {
   const text = read(chartKey(library.current));
   state = fromMermaid(text == null ? EMPTY_CHART : text);
-  selection = null;
+  selection = { nodes: [], edges: [] };
   idSeq = 1;
   state.nodes.forEach(n => {
     const m = /^n(\d+)$/.exec(n.id);
@@ -1731,7 +2154,7 @@ function reviewImport() {
 
 function applyImport(parsed) {
   state = parsed;
-  selection = null;
+  selection = { nodes: [], edges: [] };
   render();
   fit();
   save();
@@ -1811,7 +2234,7 @@ function toSvgString() {
   const clone = gView.cloneNode(true);
   clone.removeAttribute("transform");
   clone.removeAttribute("id");
-  clone.querySelectorAll(".anchor, .sel-ring, .edge-hit, #temp-edge").forEach(el => el.remove());
+  clone.querySelectorAll(".anchor, .endpoint, .sel-ring, .edge-hit, #temp-edge, #marquee").forEach(el => el.remove());
   clone.querySelectorAll(".selected").forEach(el => el.classList.remove("selected"));
   const defs = svg.querySelector("defs").cloneNode(true);
   defs.querySelectorAll("pattern").forEach(el => el.remove());
@@ -2079,7 +2502,10 @@ window.FlowYo = {
   closeSheet,
   toSvgString, toPngBlob, exportPayload,
   view: () => ({ ...view }),
+  selection: () => JSON.parse(JSON.stringify(selection)),
+  selectMany, select,
   copyFormat: () => copyFormat, setCopyFormat, runCopy,
+  convertSelection, cycleEnds,
   history: () => ({ index: hIndex, length: history.length, canUndo: canUndo(), canRedo: canRedo() })
 };
 

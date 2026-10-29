@@ -39,12 +39,13 @@ suite('growing connected shapes from a handle, centred connector labels', async 
     const grown = st.nodes[st.nodes.length - 1];
     check('handle click adds a node', st.nodes.length === before.n + 1, { before, now: st.nodes.length });
     check('handle click connects it', st.edges.length === before.e + 1 && st.edges.some(e => e.from === src && e.to === grown.id), st.edges);
-    check('new node is a square', grown.shape === 'rect', grown);
+    const source = st.nodes.find(n => n.id === src);
+    check('the new shape takes after the one it grew from', grown.shape === source.shape, { src: source.shape, grown: grown.shape });
     const srcNode = st.nodes.find(n => n.id === src);
     check('new node sits below the source (handle direction)', grown.y > srcNode.y + 60 && Math.abs(grown.x - srcNode.x) < 40, { src: srcNode, grown });
     let ed = await page.evaluate(() => ({ d: getComputedStyle(document.getElementById('label-editor')).display, v: document.getElementById('label-editor').value, focused: document.activeElement.id }));
     check('label editor opens on the new node', ed.d === 'block' && ed.focused === 'label-editor', ed);
-    check('editor is pre-filled and selected', ed.v === 'Step', ed);
+    check('editor is pre-filled and selected', ed.v === 'Start', ed);   // the circle's own default label
     await page.keyboard.type('Follow up');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(150);

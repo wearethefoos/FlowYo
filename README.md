@@ -15,10 +15,14 @@ open index.html          # or: pnpm start
 
 | | |
 |---|---|
-| add a shape | drag one from the toolbar, or click it to drop one in the middle |
-| move a shape | drag it (snaps to a 10px grid; hold **shift** to place freely) |
+| add a shape | drag one from the toolbar, or click it to drop one in the middle; **⌥A C S D P** adds one from the keyboard |
+| change a shape | select it and press **A** (arrow), **C** (circle), **S** (square), **D** (diamond) or **P** (person) |
+| move a shape | drag it (snaps to a 10px grid; hold **⌘/ctrl** to place freely) |
+| select several | drag a box across the canvas; **shift + click** adds one; they move, recolour and delete together |
 | copy a shape | **⌥/alt + drag** it |
 | connect two shapes | drag a blue handle onto another shape |
+| grow the next shape | select one and press **↑ → ↓ ←** — the same as clicking that handle |
+| flip an arrow's ends | select it and press **space**: one way → both ways → two lines with their own labels |
 | add a connected shape | click a blue handle, or drop it on empty canvas |
 | label something | double-click a shape or an arrow; **shift + enter** for a line break |
 | recolour something | select it, then a swatch or keys **1**–**4** |
@@ -29,13 +33,31 @@ open index.html          # or: pnpm start
 | copy the chart | the **Copy** button (**⇧⌘C**) — the caret beside it picks image, Markdown, mermaid or SVG, and that choice sticks |
 | download it | **Export…** from the caret or the chart menu — the same four formats as files |
 | empty a chart | **Clear this chart** in the chart menu (undoable) |
-| navigate | drag empty space to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
+| navigate | **⌥/alt + drag** or scroll to pan, **⌘/ctrl + scroll** to zoom, **Fit** to frame it |
 | on a phone | drag to move, tap to select, double-tap to label, pinch to zoom, one finger on empty canvas to pan |
 
 Colours come from a five-tone palette: beige is the paper, gunmetal the ink, and cobalt
 blue, razzmatazz and royal gold colour the shapes — a bright border over a faded fill.
 Light mode deepens the gold border slightly so it reads on the beige canvas; everything
 exported to mermaid uses the true palette hex.
+
+## The shapes
+
+Circle, square and diamond are the usual flowchart three. Two more:
+
+- **Person** — a head-and-shoulders figure with its name underneath. It connects like any
+  other shape.
+- **Arrow** — a free-standing, labelled arrow that belongs to nowhere: drag it anywhere, drag
+  either end to re-aim it, double-click to label it. Nothing connects *to* an arrow; it is an
+  annotation, not a step.
+
+Arrows and connectors share three end styles, cycled with **space**:
+
+| | |
+|---|---|
+| one way | a single line with one head |
+| both ways | a single line with a head at each end |
+| two lines | one line each way, each with its own label — placed so the two can never overlap |
 
 ## On a touch screen
 
@@ -90,6 +112,12 @@ The **Copy** button puts any of that on the clipboard in one click — the image
 or whichever format you picked last. **Export…** gives you the same four as downloads,
 with a preview.
 
+Shapes mermaid cannot spell are written as the nearest thing it can plus a `%%` note:
+a person is a box with `%% shape <id> person` beside it, and a free arrow — which has no
+mermaid equivalent at all — lives entirely in a `%% arrow` line, so a chart pasted elsewhere
+is still a clean flowchart. A two-way connector is mermaid's own `<-->`; a two-line pair is
+written as two ordinary links, and reading two opposite links back in makes a pair again.
+
 Shapes, labels (with `<br/>` line breaks) and colours are all real mermaid. Only the
 hand-placed coordinates live in `%%` comments, which mermaid ignores — so nothing is lost
 when the file travels, and reopening it in FlowYo puts every shape back where you left it.
@@ -111,9 +139,10 @@ HEADED=1 pnpm test                    # watch it happen in a real window
 ```
 
 pnpm is pinned through the `packageManager` field, so corepack picks the right version
-on its own. Dependency build scripts stay blocked (`pnpm.onlyBuiltDependencies: []`) —
-Playwright's browser download is run explicitly by the command above, not by a postinstall
-hook, so nothing needs unblocking.
+on its own. Dependency build scripts stay blocked (`onlyBuiltDependencies: []` in
+`pnpm-workspace.yaml`, which is where pnpm 11 reads it) — Playwright's browser download is
+run explicitly by the command above, not by a postinstall hook, so nothing needs unblocking.
+`CHROMIUM_PATH=/path/to/chrome` runs the suites against a browser Playwright did not fetch.
 
 | suite | covers |
 |---|---|
@@ -128,6 +157,9 @@ hook, so nothing needs unblocking.
 | `09-export` | all four formats: content, the real downloaded files, and the PNG bytes |
 | `10-copy-button` | the Copy split-button: default action, remembered format, clipboard fallback |
 | `11-touch` | an emulated phone driven by real touch events: dragging, connecting, double-tap, pinch, layout |
+| `12-shapes` | the person and the free arrow: drawing, endpoints, end styles, the mermaid round trip |
+| `13-multiselect` | the rubber band: picking up groups, moving, recolouring, deleting and copying them |
+| `14-shortcuts` | every key: ⌥ to add, a letter to convert, arrows to grow, space to cycle |
 
 Anything typed into a field goes through `t.selectAll()` rather than a hard-coded
 `Control+a`: on macOS ctrl+A means "move to start of line", so a literal ctrl+A silently

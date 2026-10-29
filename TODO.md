@@ -36,6 +36,14 @@ Shipped so far (`index.html`):
 - **Works on a phone** — drag to move, tap to select (handles appear outside the shape, finger-sized),
   double-tap to label, pinch to zoom, one finger on empty canvas to pan. The toolbar wraps so nothing
   hides off the edge
+- **Person** and **free-standing arrow** shapes — the arrow is draggable anywhere, re-aimed by its
+  endpoints, and labelled like anything else
+- **End styles** on arrows and connectors, cycled with **space**: one way, both ways, or two lines
+  each carrying its own label (placed so they can never overlap)
+- **Multi-select** — drag a box over the canvas (⌥ + drag pans instead), shift + click to add or
+  remove; the group moves, recolours, converts, copies and deletes as one
+- **Keyboard**: ⌥ + A/C/S/D/P adds a shape, A/C/S/D/P alone converts the selected ones, the arrow
+  keys grow a connected shape that way, space cycles an arrow's ends, backspace deletes
 - Autosave to `localStorage` as mermaid (`flowyo:charts:v1` index + `flowyo:chart:<id>` per chart),
   with node positions kept in `%% pos` comments and line breaks written as `<br/>`. The last edit is
   flushed on tab close
@@ -49,13 +57,14 @@ The original backlog is done. Pick from the ideas below, or:
 ## Ideas parked for later
 
 - [ ] More shapes: rounded/stadium `([ ])`, subroutine `[[ ]]`, cylinder `[( )]`
+- [ ] Multi-select by touch (one finger already pans, so it needs a gesture of its own)
+- [ ] Rotate a free arrow by its middle, and curve it
 - [ ] Custom colours beyond the four palette slots, and per-chart theming
-- [ ] A touch equivalent for ⌥-drag (copy) and ⇧-drag (ignore the grid) — long-press, maybe
+- [ ] A touch equivalent for ⌥-drag (copy) and ⌘-drag (ignore the grid) — long-press, maybe
 - [ ] Export in the *other* theme, or on a transparent background, rather than what's on screen
 - [ ] Orthogonal / elbow connector routing instead of straight lines
 - [ ] Drag an arrow's endpoint onto a different shape to re-route it
 - [ ] Drop a `.mmd`/`.md` file onto the canvas, or ⌘V mermaid straight in, instead of the paste box
-- [ ] Let a spawned shape inherit the source's shape (or pick one) instead of always a square
 - [ ] Multi-select with a rubber band, plus align and distribute
 - [ ] Auto-arrange the whole chart (top-down / left-right)
 - [ ] Copy-paste and duplicate via the keyboard (⌘C/⌘V, ⌘D) alongside alt-drag

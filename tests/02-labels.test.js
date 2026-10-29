@@ -125,15 +125,15 @@ suite('arrow labels, soft line breaks and alt-drag copies', async (t) => {
     await page.waitForTimeout(100);
     check('plain drag still moves rather than copies', await page.evaluate(() => window.FlowYo.state.nodes.length) === n0, n0);
 
-    // shift+drag ignores the grid
+    // ⌘/ctrl+drag ignores the grid (shift is for adding to the selection)
     c = await centre(before.first.id);
-    await page.keyboard.down('Shift');
+    await page.keyboard.down('ControlOrMeta');
     await page.mouse.move(c.x, c.y);
     await page.mouse.down();
     await page.mouse.move(c.x + 33, c.y + 7, { steps: 5 });
     await page.mouse.up();
-    await page.keyboard.up('Shift');
+    await page.keyboard.up('ControlOrMeta');
     await page.waitForTimeout(100);
     const free = await page.evaluate(id => { const n = window.FlowYo.state.nodes.find(x => x.id === id); return { x: n.x, y: n.y }; }, before.first.id);
-    check('shift+drag ignores the grid', free.x % 10 !== 0 || free.y % 10 !== 0, free);
+    check('cmd/ctrl+drag ignores the grid', free.x % 10 !== 0 || free.y % 10 !== 0, free);
 });

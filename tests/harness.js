@@ -32,6 +32,7 @@ function startServer(root = ROOT) {
   return new Promise(resolve => {
     const server = http.createServer((req, res) => {
       const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '');
+      if (rel === 'favicon.ico') { res.writeHead(204).end(); return; }   // not a test failure
       const file = path.join(root, rel || 'index.html');
       if (!file.startsWith(root)) { res.writeHead(403).end(); return; }
       fs.readFile(file, (err, body) => {
@@ -52,9 +53,11 @@ function helpers(page) {
   const state = () => page.evaluate(() => window.FlowYo.state);
   const fit = async () => { await page.evaluate(() => window.FlowYo.fit()); await page.waitForTimeout(60); };
 
-  /** screen-space centre of a node */
+  /** screen-space centre of a node (an arrow has no outline, so fall back to its group) */
   const centre = id => page.evaluate(i => {
-    const r = document.querySelector(`[data-id="${i}"] .node-shape`).getBoundingClientRect();
+    const g = document.querySelector(`[data-id="${i}"]`);
+    const el = g.querySelector('.node-shape') || g;
+    const r = el.getBoundingClientRect();
     return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
   }, id);
 
@@ -95,7 +98,14 @@ function helpers(page) {
    */
   const selectAll = () => page.keyboard.press('ControlOrMeta+a');
 
-  return { state, fit, centre, edgePoint, hoverAnchor, selectAll };
+  /** world coordinates -> screen, for aiming at empty canvas */
+  const toScreen = (wx, wy) => page.evaluate(([x, y]) => {
+    const r = document.getElementById('canvas').getBoundingClientRect();
+    const v = window.FlowYo.view();
+    return { x: r.left + v.x + x * v.k, y: r.top + v.y + y * v.k };
+  }, [wx, wy]);
+
+  return { state, fit, centre, edgePoint, hoverAnchor, selectAll, toScreen };
 }
 
 /* ---------- touch, dispatched as real touch events ---------- */
@@ -155,7 +165,11 @@ async function touchKit(page, context) {
 function suite(title, fn, opts = {}) {
   (async () => {
     const t0 = Date.now();
-    const browser = await chromium.launch({ headless: !process.env.HEADED });
+    const browser = await chromium.launch({
+      headless: !process.env.HEADED,
+      // CHROMIUM_PATH lets you run against a browser Playwright did not download
+      ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
+    });
     // a phone when the suite asks for one, otherwise a desktop window
     const context = await browser.newContext(opts.touch
       ? Object.assign({}, devices['iPhone 13'], { colorScheme: opts.colorScheme || 'light' })
